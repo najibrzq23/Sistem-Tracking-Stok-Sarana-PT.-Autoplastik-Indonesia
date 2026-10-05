@@ -1,0 +1,1282 @@
+<!DOCTYPE html>
+<html lang="id" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=1024, initial-scale=1.0">
+    <title>Tracking Stok Sarana - PT. Autoplastik Indonesia</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/html5-qrcode"></script>
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+    <!-- Library QR Code Generator -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+    <style>
+        body { background-color: #0b0f19; color: #f3f4f6; font-family: ui-sans-serif, system-ui, -apple-system, sans-serif; }
+        .dark-card { background-color: #111827; border: 1px solid #1f2937; }
+        .swal2-popup.dark-swal { background-color: #111827 !important; border: 1px solid #1f2937 !important; border-radius: 1.25rem !important; color: #f3f4f6 !important; }
+        .swal2-title { color: #ffffff !important; font-weight: 800 !important; }
+        .sidebar-btn.active { background-color: #2563eb !important; color: #ffffff !important; border-color: #3b82f6 !important; }
+        
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: #111827; }
+        ::-webkit-scrollbar-thumb { background: #374151; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #4b5563; }
+
+        #sidebar { transition: transform 0.3s ease-in-out; }
+
+        @media print {
+            /* Sembunyikan semua elemen secara default */
+            body * {
+                visibility: hidden !important;
+            }
+            
+            /* Tampilkan HANYA elemen kertas A4 dan seluruh isinya */
+            #a4_preview_wrapper, 
+            #a4_preview_wrapper * {
+                visibility: visible !important;
+            }
+            
+            /* Atur posisi wrapper A4 agar pas di pojok kiri atas halaman cetak */
+            #a4_preview_wrapper {
+                position: absolute !important;
+                left: 0 !important;
+                top: 0 !important;
+                width: 100% !important;
+                margin: 0 !important;
+                padding: 0 !important;
+                background: white !important;
+            }
+
+            .a4-page {
+                box-shadow: none !important;
+                border-radius: 0 !important;
+                padding: 10mm !important;
+                margin: 0 !important;
+                width: 100% !important;
+                page-break-after: always !important; /* Memastikan setiap A4 ganti halaman */
+            }
+        }
+
+/* Mengatur Layout Grid Label (Contoh: 3 Kolom) */
+.qr-grid-container {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr); /* Ubah ke repeat(4, 1fr) jika ingin 4 kolom */
+    gap: 8mm 6mm;                          /* Jarak antar stiker label (Atas-Bawah & Kiri-Kanan) */
+}
+
+/* Styling Kartu Stiker / Label QR Code */
+.qr-label-card {
+    border: 1px dashed #666666; /* Garis abu-abu putus-putus untuk panduan gunting */
+    border-radius: 4px;
+    padding: 6px;
+    background: #ffffff;
+}
+    </style>
+</head>
+<body class="min-h-screen flex flex-col relative overflow-x-hidden">
+
+    <!-- MODAL LOGIN -->
+    <div id="login_modal" class="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4">
+        <div class="dark-card p-8 rounded-3xl max-w-md w-full border border-gray-800 shadow-2xl space-y-6">
+            <div class="text-center space-y-2">
+                <div class="w-16 h-16 bg-blue-600 rounded-2xl flex items-center justify-center font-black text-2xl text-white mx-auto shadow-lg shadow-blue-500/30">API</div>
+                <h2 class="text-2xl font-black text-white">Login System</h2>
+                <p class="text-xs text-gray-400">Silakan login sesuai username akun Anda</p>
+            </div>
+            <form onsubmit="handleLogin(event)" class="space-y-4">
+                <div>
+                    <label class="block text-xs font-bold uppercase text-gray-400 mb-2">Username</label>
+                    <input type="text" id="login_user" required class="w-full bg-gray-900 border border-gray-700 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-blue-500" placeholder="Username">
+                </div>
+                <div>
+                    <label class="block text-xs font-bold uppercase text-gray-400 mb-2">Password</label>
+                    <input type="password" id="login_pass" required class="w-full bg-gray-900 border border-gray-700 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-blue-500" placeholder="••••••••">
+                </div>
+                <button type="submit" class="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-3.5 rounded-xl shadow-lg shadow-blue-600/30 transition">Masuk Akun</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- OVERLAY BACKGROUND SAAT SIDEBAR BUKA -->
+    <div id="sidebar_overlay" onclick="toggleSidebar()" class="fixed inset-0 bg-black/60 z-30 hidden backdrop-blur-sm"></div>
+
+    <!-- SIDEBAR DRAWER (COLLAPSIBLE) -->
+    <!-- SIDEBAR DRAWER (COLLAPSIBLE WITH SCROLL) -->
+    <aside id="sidebar" class="fixed top-0 left-0 h-full w-72 dark-card p-5 flex flex-col justify-between border-r border-gray-800 z-40 -translate-x-full shadow-2xl overflow-y-auto">
+        <div class="space-y-6">
+            <div class="flex items-center justify-between px-2 py-1 shrink-0">
+                <div class="flex items-center space-x-3">
+                    <!-- KODE BARU (MENGGUNAKAN FILE LOGO JPG) -->
+                    <img src="/static/logo_api.jpg" alt="Logo PT API" class="w-10 h-10 object-contain rounded-xl shadow-md shrink-0">
+                    <div>
+                        <h1 class="text-base font-extrabold text-white leading-tight">PT. Autoplastik Indonesia</h1>
+                        <p class="text-[11px] text-blue-400 font-semibold">SISTEM PELACAKAN STOK SARANA</p>
+                    </div>
+                </div>
+                <button onclick="toggleSidebar()" class="text-gray-400 hover:text-white p-2 rounded-lg bg-gray-800/60">✕</button>
+            </div>
+            <hr class="border-gray-800">
+            
+            <!-- NAVIGASI MENU DENGAN SCROLL -->
+            <nav class="space-y-1.5 pb-4">
+                <div class="text-[10px] font-extrabold uppercase tracking-wider text-gray-500 px-3 mb-2">Main Menu</div>
+                <button id="nav_overview" onclick="switchMenu('overview')" class="sidebar-btn active w-full flex items-center gap-3 px-3.5 py-3 rounded-xl text-xs font-bold text-gray-400 border border-transparent text-left">📊 Overview Dashboard</button>
+
+                <div id="section_station" class="space-y-1.5">
+                    <div class="text-[10px] font-extrabold uppercase tracking-wider text-gray-500 px-3 mt-5 mb-2">Station PT API</div>
+                    <button id="nav_api_out" onclick="switchMenu('api_out')" class="sidebar-btn w-full flex items-center gap-3 px-3.5 py-3 rounded-xl text-xs font-bold text-gray-400 border border-transparent text-left">📤 PT API - Outbound</button>
+                    <button id="nav_api_in" onclick="switchMenu('api_in')" class="sidebar-btn w-full flex items-center gap-3 px-3.5 py-3 rounded-xl text-xs font-bold text-gray-400 border border-transparent text-left">📥 PT API - Inbound</button>
+
+                    <div class="text-[10px] font-extrabold uppercase tracking-wider text-gray-500 px-3 mt-5 mb-2">Station L2 Vendor</div>
+                    <button id="nav_vendor_in" onclick="switchMenu('vendor_in')" class="sidebar-btn w-full flex items-center gap-3 px-3.5 py-3 rounded-xl text-xs font-bold text-gray-400 border border-transparent text-left">📥 Vendor L2 - Inbound</button>
+                    <button id="nav_vendor_out" onclick="switchMenu('vendor_out')" class="sidebar-btn w-full flex items-center gap-3 px-3.5 py-3 rounded-xl text-xs font-bold text-gray-400 border border-transparent text-left">📤 Vendor L2 - Outbound</button>
+                </div>
+
+                <div id="section_admin" class="space-y-1.5">
+                    <div class="text-[10px] font-extrabold uppercase tracking-wider text-amber-500 px-3 mt-5 mb-2">MANAGEMENT AREA</div>
+                    <button id="nav_database" onclick="switchMenu('database')" class="sidebar-btn w-full flex items-center gap-3 px-3.5 py-3 rounded-xl text-xs font-bold text-amber-400 border border-transparent text-left">🗄️ Master Data Sarana</button>
+                    <button id="nav_users" onclick="switchMenu('users')" class="sidebar-btn w-full flex items-center gap-3 px-3.5 py-3 rounded-xl text-xs font-bold text-amber-400 border border-transparent text-left">👤 Daftar & Buat Akun</button>
+                    <!-- MENU QR CODE GENERATOR -->
+                    <button id="nav_qrcode" onclick="switchMenu('qrcode')" class="sidebar-btn w-full flex items-center gap-3 px-3.5 py-3 rounded-xl text-xs font-bold text-amber-400 border border-transparent text-left">🖨️ Cetak & Generator QR Code</button>
+                </div>
+            </nav>
+        </div>
+
+        <div class="pt-4 border-t border-gray-800 space-y-3 shrink-0">
+            <div class="bg-gray-900/60 p-3 rounded-xl border border-gray-800 flex justify-between items-center">
+                <div>
+                    <p id="user_display_name" class="text-xs font-bold text-white">-</p>
+                    <p id="user_display_role" class="text-[10px] font-semibold text-blue-400 uppercase">-</p>
+                </div>
+                <button onclick="logout()" class="text-xs text-red-400 font-bold hover:underline">Exit</button>
+            </div>
+        </div>
+    </aside>
+
+    <!-- MAIN CONTENT -->
+    <main class="flex-1 p-4 md:p-8 overflow-y-auto w-full">
+        <div class="max-w-7xl mx-auto space-y-6">
+
+            <!-- 1. OVERVIEW DASHBOARD -->
+            <div id="view_overview" class="space-y-6">
+                <div id="sync_banner" class="hidden dark-card p-4 rounded-xl text-sm text-amber-300">
+                    <span id="sync_text"></span>
+                    <button id="sync_review" class="hidden underline ml-3" onclick="reviewSync()">Periksa pengiriman</button>
+                </div>
+                <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 dark-card p-5 rounded-2xl border border-gray-800 shadow-lg">
+                    <div class="flex items-center gap-4">
+                        <button onclick="toggleSidebar()" class="p-2.5 rounded-xl bg-gray-800 hover:bg-gray-700 text-white border border-gray-700 transition shadow-md flex items-center justify-center">
+                            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M4 6h16M4 12h16M4 18h16"></path></svg>
+                        </button>
+                        <div>
+                            <h2 class="text-xl font-black text-white">OVERVIEW CONTROL</h2>
+                            <p class="text-xs text-gray-400">Posisi stok semua lokasi • diperbarui setiap 10 detik • waktu log WIB</p>
+                        </div>
+                    </div>
+                    <div class="flex items-center gap-3 self-end md:self-auto">
+                        <button onclick="refreshAllData()" class="bg-gray-800 hover:bg-gray-700 text-gray-200 border border-gray-700 py-2.5 px-4 rounded-xl text-xs font-semibold shadow-md flex items-center gap-2">
+                            🔄 Refresh
+                        </button>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+                    <div class="lg:col-span-8 dark-card rounded-2xl shadow-xl overflow-hidden border border-gray-800 flex flex-col">
+                        <div class="p-5 border-b border-gray-800 flex justify-between items-center bg-gray-900/50 shrink-0">
+                            <h2 class="text-sm font-bold text-gray-200">📊 Summary Stok Per Jenis Sarana</h2>
+                            <span id="total_jenis_badge" class="text-xs bg-gray-800 text-gray-300 font-semibold px-3 py-1 rounded-full border border-gray-700">0 Jenis</span>
+                        </div>
+                        <div class="overflow-x-auto overflow-y-auto max-h-[360px]">
+                            <table class="w-full text-left border-collapse">
+                                <thead class="sticky top-0 bg-gray-900 z-10">
+                                    <tr class="text-xs uppercase tracking-wider text-gray-400 border-b border-gray-800">
+                                        <th class="py-3.5 px-6">Nama Part</th>
+                                        <th class="py-3.5 px-4 text-center">Total QTY</th>
+                                        <th class="py-3.5 px-4 text-center">PT API</th>
+                                        <th class="py-3.5 px-4 text-center">Truck</th>
+                                        <th class="py-3.5 px-4 text-center">L2 Vendor</th>
+                                        <th class="py-3.5 px-6 text-center">Status</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="table_body" class="divide-y divide-gray-800/60 text-sm font-medium"></tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <div class="lg:col-span-4 dark-card p-5 rounded-2xl shadow-xl border border-gray-800 flex flex-col">
+                        <div class="flex items-center gap-3 mb-4 shrink-0">
+                            <div class="p-2 bg-red-500/10 border border-red-500/20 text-red-400 rounded-xl">⚠️</div>
+                            <div>
+                                <h2 class="text-base font-bold text-red-400">Peringatan Selisih</h2>
+                                <p class="text-xs text-gray-400">Unit terdeteksi Hilang/Tertinggal di Truk</p>
+                            </div>
+                        </div>
+                        <div id="selisih_list" class="space-y-3 flex-1 overflow-y-auto max-h-[350px] pr-1"></div>
+                    </div>
+                </div>
+
+                <div class="dark-card p-6 rounded-2xl border border-gray-800 shadow-xl space-y-4">
+                    <div class="flex justify-between items-center border-b border-gray-800 pb-3">
+                        <h3 class="text-sm font-bold text-white uppercase tracking-wider flex items-center gap-2">
+                            📜 Seluruh Audit Log Pemindaian Real-Time
+                        </h3>
+                        <span id="total_log_badge" class="text-xs bg-gray-800 text-blue-400 font-semibold px-3 py-1 rounded-full border border-gray-700">0 Transaksi</span>
+                    </div>
+
+                    <div class="overflow-x-auto overflow-y-auto max-h-[380px] rounded-xl border border-gray-800 bg-gray-900/30">
+                        <table class="w-full text-left border-collapse text-xs">
+                            <thead class="sticky top-0 bg-gray-900 z-10">
+                                <tr class="text-gray-400 uppercase tracking-wider border-b border-gray-800">
+                                    <th class="py-3 px-4 font-bold">Log ID</th>
+                                    <th class="py-3 px-4 font-bold">ID Sarana</th>
+                                    <th class="py-3 px-4 font-bold">Alur / Event Scan</th>
+                                    <th class="py-3 px-4 font-bold">Vendor</th>
+                                    <th class="py-3 px-4 font-bold">Waktu Pemindaian</th>
+                                </tr>
+                            </thead>
+                            <tbody id="overview_logs_body" class="divide-y divide-gray-800/80 font-medium"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 2. STATION SCANNER -->
+            <div id="view_station" class="hidden">
+                <div class="dark-card p-6 rounded-2xl shadow-xl border border-gray-800">
+                    <div class="mb-6 border-b border-gray-800 pb-4 flex items-center justify-between">
+                        <div class="flex items-center gap-4">
+                            <button onclick="toggleSidebar()" class="p-2.5 rounded-xl bg-gray-800 hover:bg-gray-700 text-white border border-gray-700 transition shadow-md">
+                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M4 6h16M4 12h16M4 18h16"></path></svg>
+                            </button>
+                            <div>
+                                <span id="station_badge" class="text-[10px] font-bold px-2.5 py-1 rounded-full uppercase border tracking-wider"></span>
+                                <h2 id="station_title" class="text-xl font-extrabold text-white mt-1"></h2>
+                                <p id="station_desc" class="text-xs text-gray-400 mt-0.5"></p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+                        <div class="lg:col-span-5 border border-gray-800 rounded-xl p-4 bg-gray-900/40">
+                            <h3 class="text-xs font-bold text-gray-300 uppercase mb-3">📷 Kamera Barcode Scanner</h3>
+                            <div id="reader_container" class="w-full rounded-xl overflow-hidden border border-gray-800 bg-black/50"></div>
+                        </div>
+
+                        <div class="lg:col-span-7 flex flex-col justify-between space-y-4">
+                            <div>
+                                <label class="block text-xs font-bold uppercase text-gray-400 mb-2">Scan / Input Barcode ID Sarana</label>
+                                <input type="text" id="station_id_input" class="w-full bg-gray-900 border border-gray-700 rounded-xl px-4 py-3.5 text-white font-mono text-lg" placeholder="Contoh: BOX-A-001">
+                            </div>
+                            <div class="space-y-3 pt-4">
+                                <button id="station_submit_btn" onclick="submitCurrentStation()" class="w-full text-white font-bold py-3.5 px-6 rounded-xl transition shadow-lg text-sm">Submit Scan Sekarang</button>
+                                <button id="btn_finish_unloading" disabled title="Perlu identitas pengiriman agar truk lain tidak ikut ditandai hilang" class="w-full bg-amber-600 hover:bg-amber-500 text-white font-bold py-3 px-6 rounded-xl transition text-xs hidden">Penutupan massal belum tersedia; gunakan scan penerimaan</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 3. MENU ADMIN: MASTER DATA SARANA -->
+            <div id="view_database" class="hidden space-y-6">
+                <div class="dark-card p-6 rounded-2xl border border-gray-800 shadow-xl space-y-6">
+                    <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 border-b border-gray-800 pb-4">
+                        <div class="flex items-center gap-4">
+                            <button onclick="toggleSidebar()" class="p-2.5 rounded-xl bg-gray-800 hover:bg-gray-700 text-white border border-gray-700 transition shadow-md">
+                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M4 6h16M4 12h16M4 18h16"></path></svg>
+                            </button>
+                            <div>
+                                <h2 class="text-xl font-black text-amber-400">🗄️ Master Data Sarana </h2>
+                                <p class="text-xs text-gray-400">Hak akses khusus Foreman, Group Leader, dan Section Head</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="space-y-3">
+                        <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+                            <h3 class="text-sm font-bold text-white uppercase tracking-wider flex items-center gap-2">List Master Sarana</h3>
+                            <div class="flex items-center gap-2">
+                                <button onclick="openDeleteNgModal()" class="bg-red-600 hover:bg-red-500 text-white font-bold py-2 px-3.5 rounded-xl text-xs transition shadow-md flex items-center gap-1.5">
+                                    🗑️ Hapus Stok (NG)
+                                <button onclick="openAddStokModal()" class="bg-amber-600 hover:bg-amber-500 text-white font-bold py-2 px-3.5 rounded-xl text-xs transition shadow-md flex items-center gap-1.5">
+                                    ➕ Tambah Stok Sarana
+                                </button>
+                                <button onclick="syncAndReloadData()" class="bg-blue-600 hover:bg-blue-500 text-white font-bold py-2 px-3.5 rounded-xl text-xs transition shadow-md flex items-center gap-1.5">
+                                    🔄 Refresh & Sync dari Sheets
+                                </button>
+                                <a id="sheet_link" hidden href="#" target="_blank" rel="noopener noreferrer" class="bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-2 px-3.5 rounded-xl text-xs transition shadow-md flex items-center gap-1.5">
+                                    ✏️ Edit via Google Sheets ↗
+                                </a>
+                            </div>
+                        </div>
+
+                        <div class="overflow-x-auto overflow-y-auto max-h-[400px] rounded-xl border border-gray-800 bg-gray-900/30">
+                            <table class="w-full text-left border-collapse text-xs">
+                                <thead class="sticky top-0 bg-gray-900 z-10">
+                                    <tr class="text-gray-400 uppercase tracking-wider border-b border-gray-800">
+                                        <th class="py-3 px-4 font-bold">ID Sarana</th>
+                                        <th class="py-3 px-4 font-bold">Nama Sarana</th>
+                                        <th class="py-3 px-4 font-bold">No Sarana</th>
+                                        <th class="py-3 px-4 text-center font-bold">Vendor</th>
+                                        <th class="py-3 px-4 text-center font-bold">Status Saat Ini</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="db_master_body" class="divide-y divide-gray-800/80 font-medium"></tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 4. MENU ADMIN: DAFTAR AKUN SYSTEM -->
+            <div id="view_users" class="hidden space-y-6">
+                <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+                    <div class="lg:col-span-5 dark-card p-6 rounded-2xl border border-gray-800 shadow-xl space-y-5">
+                        <div class="border-b border-gray-800 pb-3">
+                            <h2 class="text-lg font-black text-amber-400">➕ Buat Akun Pengguna Baru</h2>
+                            <p class="text-xs text-gray-400">Daftarkan akun login pegawai baru ke database</p>
+                        </div>
+
+                        <form onsubmit="handleCreateUser(event)" class="space-y-4">
+                            <div>
+                                <label class="block text-xs font-bold uppercase text-gray-400 mb-1">Nama Lengkap</label>
+                                <input type="text" id="reg_nama" required class="w-full bg-gray-900 border border-gray-700 rounded-xl px-3.5 py-2.5 text-xs text-white focus:outline-none focus:border-amber-500" placeholder="Contoh: Najib Industrial">
+                            </div>
+                            <div class="grid grid-cols-2 gap-3">
+                                <div>
+                                    <label class="block text-xs font-bold uppercase text-gray-400 mb-1">NPK Pegawai</label>
+                                    <input type="text" id="reg_npk" required class="w-full bg-gray-900 border border-gray-700 rounded-xl px-3.5 py-2.5 text-xs text-white focus:outline-none focus:border-amber-500" placeholder="Contoh: 20260901">
+                                </div>
+                                <div>
+                                    <label class="block text-xs font-bold uppercase text-gray-400 mb-1">Jabatan</label>
+                                    <input type="text" id="reg_jabatan" required class="w-full bg-gray-900 border border-gray-700 rounded-xl px-3.5 py-2.5 text-xs text-white focus:outline-none focus:border-amber-500" placeholder="Foreman / Operator">
+                                </div>
+                            </div>
+                            <div>
+                                <label class="block text-xs font-bold uppercase text-gray-400 mb-1">Username Login</label>
+                                <input type="text" id="reg_username" required class="w-full bg-gray-900 border border-gray-700 rounded-xl px-3.5 py-2.5 text-xs text-white focus:outline-none focus:border-amber-500 font-mono" placeholder="username_login">
+                            </div>
+                            <div>
+                                <label class="block text-xs font-bold uppercase text-gray-400 mb-1">Role Hak Akses</label>
+                                <select id="reg_role" required class="w-full bg-gray-900 border border-gray-700 rounded-xl px-3.5 py-2.5 text-xs text-white focus:outline-none focus:border-amber-500">
+                                    <option value="member">OPERATOR (Scanner Access)</option>
+                                    <option value="admin">ADMIN (Full Control & DB Access)</option>
+                                    <option value="guest">GUEST (View Only)</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block text-xs font-bold uppercase text-gray-400 mb-1">Password</label>
+                                <input type="password" id="reg_password" required minlength="12" maxlength="256" class="w-full bg-gray-900 border border-gray-700 rounded-xl px-3.5 py-2.5 text-xs text-white focus:outline-none focus:border-amber-500" placeholder="••••••••">
+                            </div>
+                            <button type="submit" class="w-full bg-amber-600 hover:bg-amber-500 text-white font-bold py-3 rounded-xl shadow-lg shadow-amber-600/20 transition text-xs">
+                                💾 Simpan & Registrasi Akun
+                            </button>
+                        </form>
+                    </div>
+
+                    <div class="lg:col-span-7 dark-card p-6 rounded-2xl border border-gray-800 shadow-xl space-y-4 flex flex-col justify-between">
+                        <div class="flex items-center justify-between border-b border-gray-800 pb-3">
+                            <div class="flex items-center gap-3">
+                                <button onclick="toggleSidebar()" class="p-2 rounded-lg bg-gray-800 hover:bg-gray-700 text-white border border-gray-700 transition">
+                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M4 6h16M4 12h16M4 18h16"></path></svg>
+                                </button>
+                                <div>
+                                    <h2 class="text-lg font-black text-white">👤 Daftar Akun System</h2>
+                                    <p class="text-xs text-gray-400">Pengguna terdaftar dalam database lokal</p>
+                                </div>
+                            </div>
+                            <span id="total_user_badge" class="text-xs bg-gray-800 text-amber-400 font-bold px-3 py-1 rounded-full border border-gray-700">0 User</span>
+                        </div>
+
+                        <div class="overflow-x-auto overflow-y-auto max-h-[420px] rounded-xl border border-gray-800 bg-gray-900/30 flex-1">
+                            <table class="w-full text-left border-collapse text-xs">
+                                <thead class="sticky top-0 bg-gray-900 z-10">
+                                    <tr class="text-gray-400 uppercase tracking-wider border-b border-gray-800">
+                                        <th class="py-3.5 px-3 font-bold">NPK</th>
+                                        <th class="py-3.5 px-3 font-bold">Nama Lengkap</th>
+                                        <th class="py-3.5 px-3 font-bold">Username</th>
+                                        
+                                        <th class="py-3.5 px-3 font-bold">Jabatan</th>
+                                        <th class="py-3.5 px-3 text-center font-bold">Role</th>
+                                        <th class="py-3.5 px-3 text-center font-bold">Aksi</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="db_users_body" class="divide-y divide-gray-800/80 font-medium"></tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 5. MENU ADMIN: BATCH GENERATOR & PRINT QR CODE A4 -->
+            <!-- 5. MENU ADMIN: BATCH GENERATOR, PRINT & DOWNLOAD QR CODE A4 -->
+            <div id="view_qrcode" class="hidden space-y-6">
+                <div class="dark-card p-6 rounded-2xl border border-gray-800 shadow-xl space-y-6">
+                    
+                    <!-- HEADER & AKSI AKSI (PRINT & DOWNLOAD) -->
+                    <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 border-b border-gray-800 pb-4">
+                        <div class="flex items-center gap-3">
+                            <button onclick="toggleSidebar()" class="p-2.5 rounded-xl bg-gray-800 hover:bg-gray-700 text-white border border-gray-700 transition">
+                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M4 6h16M4 12h16M4 18h16"></path></svg>
+                            </button>
+                            <div>
+                                <h2 class="text-xl font-black text-amber-400">🖨️ Batch Print & Download QR Code (Kertas A4)</h2>
+                                <p class="text-xs text-gray-400">Cetak atau unduh label QR Code berdasarkan Jenis Part / Sarana</p>
+                            </div>
+                        </div>
+
+                        <div class="flex flex-wrap items-center gap-2 w-full md:w-auto">
+                            <!-- Dropdown Pilih Jenis Part -->
+                            <select id="qr_select_part" onchange="generateBatchQRCodeA4()" class="bg-gray-900 border border-gray-700 rounded-xl px-4 py-2.5 text-xs text-white focus:outline-none focus:border-amber-500 font-bold w-full md:w-60">
+                                <option value="">-- Pilih Jenis Part / Sarana --</option>
+                            </select>
+
+                            <!-- TOMBOL 1: CETAK / PRINT -->
+                            <button onclick="window.print()" class="bg-blue-600 hover:bg-blue-500 text-white font-bold py-2.5 px-4 rounded-xl text-xs transition shadow-lg shrink-0 flex items-center gap-1.5">
+                                🖨️ Cetak Lembar A4
+                            </button>
+
+                            <!-- TOMBOL 2: DOWNLOAD PDF -->
+                            <button onclick="downloadAsPDF()" class="bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-2.5 px-4 rounded-xl text-xs transition shadow-lg shrink-0 flex items-center gap-1.5">
+                                📥 Download PDF
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- CONTAINER PREVIEW GRID KERTAS A4 -->
+                    <div class="bg-gray-950 p-6 rounded-2xl border border-gray-800 flex justify-center overflow-x-auto">
+                        <div id="a4_preview_wrapper" class="space-y-8">
+                            <div class="text-gray-500 text-xs text-center py-12">
+                                Silakan pilih <b>Jenis Part / Sarana</b> di atas untuk menampilkan seluruh label QR Code dalam format lembar A4.
+                            </div>
+                        </div>
+                    </div>
+
+                </div>
+            </div>
+
+        </div>
+    </main>
+
+    <!-- JAVASCRIPT LOGIC -->
+    <script>
+        const originalFetch = window.fetch.bind(window);
+        window.fetch = async function(input, options = {}) {
+            if (typeof input === 'string' && input.startsWith('/api/')) {
+                const headers = new Headers(options.headers || {});
+                if (!['GET','HEAD'].includes((options.method || 'GET').toUpperCase())) headers.set('X-Requested-With', 'XMLHttpRequest');
+                options = {...options, headers, credentials: 'same-origin', cache: 'no-store'};
+            }
+            const response = await originalFetch(input, options);
+            if (response.status === 401 && input !== '/api/login') {
+                if (dashboardInterval) clearInterval(dashboardInterval);
+                currentUser = null;
+                if (currentScanner) {try {await currentScanner.clear();} catch(e) {} currentScanner = null;}
+                document.getElementById('login_modal').classList.remove('hidden');
+            }
+            return response;
+        };
+        let syncState = null;
+        async function loadSyncStatus() {
+            const res = await fetch('/api/sync/status');
+            if (!res.ok) return;
+            syncState = await res.json();
+            document.getElementById('sync_banner').classList.remove('hidden');
+            document.getElementById('sync_text').textContent = !syncState.configured ? 'Koneksi Sheets belum dikonfigurasi.' :
+                syncState.pending ? `Salinan Sheets: ${syncState.pending} pengiriman belum selesai (${syncState.state}). ${syncState.message}` : 'Salinan perubahan ke Sheets: seluruh pengiriman terkonfirmasi.';
+            document.getElementById('sync_review').classList.toggle('hidden', !syncState.reviewable);
+        }
+        async function reviewSync() {
+            await loadSyncStatus();
+            if (!syncState || !syncState.reviewable) return;
+            const jobId = syncState.first_id;
+            const answer = await Swal.fire({title:'Periksa DATABASE dan LOG_SCAN',
+                text:'Bandingkan data di bawah dengan Sheets. Jika sebagian tersimpan, lengkapi/perbaiki Sheets terlebih dahulu. Pilih kirim ulang hanya bila seluruh transaksi ini belum tersimpan.',
+                input:'textarea', inputValue:JSON.stringify(syncState.payload, null, 2), inputAttributes:{readonly:'readonly'},
+                showDenyButton:true, showCancelButton:true, confirmButtonText:'Sudah lengkap di Sheets', denyButtonText:'Belum tersimpan; kirim ulang', cancelButtonText:'Batal', customClass:{popup:'dark-swal'}});
+            if (!answer.isConfirmed && !answer.isDenied) return;
+            const confirmation = await Swal.fire({icon:'warning', text: answer.isConfirmed ?
+                'Saya sudah memastikan stok DAN log transaksi ini lengkap di Sheets.' : 'Saya sudah memastikan transaksi ini SAMA SEKALI belum tersimpan di stok maupun log Sheets. Kirim ulang?',
+                showCancelButton:true, confirmButtonText:'Ya, sudah saya periksa', cancelButtonText:'Batal', customClass:{popup:'dark-swal'}});
+            if (!confirmation.isConfirmed) return;
+            const form = new FormData();form.append('job_id',jobId);form.append('decision',answer.isConfirmed?'verified':'retry');
+            const res = await fetch('/api/sync/resolve',{method:'POST',body:form});
+            const data = await res.json();
+            await Swal.fire({icon:res.ok?'success':'error',text:data.message,customClass:{popup:'dark-swal'}});
+            await loadSyncStatus();
+        }
+        let currentUser = null;
+        let currentAlurVal = "1";
+        let currentScanner = null;
+        let isScanningLocked = false;
+
+        const menuConfigs = {
+            'overview': { title: 'Overview Dashboard' },
+            'api_out': { badge: 'PT API ➔ TRUK', badgeClass: 'bg-blue-500/10 text-blue-400 border-blue-500/20', title: 'Outbound Pengiriman PT API', desc: 'Scan barang keluar PT API', alur: '1', btnClass: 'bg-blue-600 hover:bg-blue-500' },
+            'api_in': { badge: 'TRUK BALIK ➔ PT API', badgeClass: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20', title: 'Inbound Penerimaan PT API', desc: 'Scan barang kembali ke PT API', alur: '4', btnClass: 'bg-emerald-600 hover:bg-emerald-500' },
+            'vendor_in': { badge: 'TRUK ➔ L2 VENDOR', badgeClass: 'bg-cyan-500/10 text-cyan-400 border-cyan-500/20', title: 'Inbound Unloading Vendor', desc: 'Scan barang diterima L2 Vendor', alur: '2', btnClass: 'bg-cyan-600 hover:bg-cyan-500', showUnloadingBtn: true },
+            'vendor_out': { badge: 'L2 VENDOR ➔ TRUK BALIK', badgeClass: 'bg-amber-500/10 text-amber-400 border-amber-500/20', title: 'Outbound Return Vendor', desc: 'Scan barang kembali dari L2 Vendor', alur: '3', btnClass: 'bg-amber-600 hover:bg-amber-500' }
+        };
+
+        function toggleSidebar() {
+            const sidebar = document.getElementById('sidebar');
+            const overlay = document.getElementById('sidebar_overlay');
+            if (sidebar.classList.contains('-translate-x-full')) {
+                sidebar.classList.remove('-translate-x-full');
+                overlay.classList.remove('hidden');
+            } else {
+                sidebar.classList.add('-translate-x-full');
+                overlay.classList.add('hidden');
+            }
+        }
+
+        async function handleLogin(e) {
+            e.preventDefault();
+            const formData = new FormData();
+            formData.append('username', document.getElementById('login_user').value);
+            formData.append('password', document.getElementById('login_pass').value);
+
+            const res = await fetch('/api/login', { method: 'POST', body: formData });
+            const data = await res.json();
+
+            if (res.ok) {
+                currentUser = data.user;
+                document.getElementById('login_pass').value = '';
+                const cfg = await (await fetch('/api/config')).json();
+                const link = document.getElementById('sheet_link');
+                link.hidden = !cfg.google_sheet_url;
+                if (cfg.google_sheet_url) link.href = cfg.google_sheet_url;
+                document.getElementById('login_modal').classList.add('hidden');
+                setupPermissions();
+                switchMenu('overview');
+            } else {
+                Swal.fire({ icon: 'error', title: 'Login Gagal', text: data.message, customClass: { popup: 'dark-swal' } });
+            }
+        }
+
+        function setupPermissions() {
+            document.getElementById('user_display_name').innerText = currentUser.nama_lengkap;
+            document.getElementById('user_display_role').innerText = `ROLE: ${currentUser.role}`;
+
+            if (currentUser.role === 'guest') {
+                document.getElementById('section_station').classList.add('hidden');
+                document.getElementById('section_admin').classList.add('hidden');
+            } else if (currentUser.role === 'member') {
+                document.getElementById('section_station').classList.remove('hidden');
+                document.getElementById('section_admin').classList.add('hidden');
+            } else if (currentUser.role === 'admin') {
+                document.getElementById('section_station').classList.remove('hidden');
+                document.getElementById('section_admin').classList.remove('hidden');
+            }
+        }
+
+        async function logout() {
+            const response = await fetch('/api/logout', {method: 'POST'});
+            if (response.ok || response.status === 401) location.reload();
+            else Swal.fire({icon:'error', text:'Logout gagal. Coba lagi.'});
+        }
+let dashboardInterval = null; // Variabel untuk menyimpan timer auto-refresh
+
+        function switchMenu(menuKey) {
+            const sidebar = document.getElementById('sidebar');
+            if (!sidebar.classList.contains('-translate-x-full')) {
+                toggleSidebar();
+            }
+
+            document.querySelectorAll('.sidebar-btn').forEach(btn => btn.classList.remove('active'));
+            if (document.getElementById(`nav_${menuKey}`)) document.getElementById(`nav_${menuKey}`).classList.add('active');
+
+            if (currentScanner) { try { currentScanner.clear(); } catch(e){} currentScanner = null; }
+
+            // Matikan interval auto-refresh jika sedang berpindah dari overview
+            if (dashboardInterval) {
+                clearInterval(dashboardInterval);
+                dashboardInterval = null;
+            }
+
+            ['overview', 'station', 'database', 'users', 'qrcode'].forEach(v => document.getElementById(`view_${v}`).classList.add('hidden'));
+
+            if (menuKey === 'overview') {
+                document.getElementById('view_overview').classList.remove('hidden');
+                refreshAllData(); // Load data pertama kali
+                
+                // 🚀 AUTO REFRESH DASHBOARD SETIAP 10 DETIK
+                dashboardInterval = setInterval(() => {
+                    refreshAllData();
+                }, 10000);
+
+            } else if (menuKey === 'database') {
+                document.getElementById('view_database').classList.remove('hidden');
+                loadAdminMaster();
+            } else if (menuKey === 'users') {
+                document.getElementById('view_users').classList.remove('hidden');
+                loadAdminUsers();
+            } else if (menuKey === 'qrcode') {
+                document.getElementById('view_qrcode').classList.remove('hidden');
+                loadMasterToQRSelect();
+                generateBatchQRCodeA4();
+            } else {
+                document.getElementById('view_station').classList.remove('hidden');
+                const cfg = menuConfigs[menuKey];
+                currentAlurVal = cfg.alur;
+                document.getElementById('station_badge').innerText = cfg.badge;
+                document.getElementById('station_title').innerText = cfg.title;
+                document.getElementById('station_desc').innerText = cfg.desc;
+                document.getElementById('station_submit_btn').className = `w-full text-white font-bold py-3.5 px-6 rounded-xl transition text-sm ${cfg.btnClass}`;
+                document.getElementById('btn_finish_unloading').classList.toggle('hidden', !cfg.showUnloadingBtn);
+                initStationScanner();
+            }
+        }
+        async function refreshAllData() {
+            await loadDashboard();
+            await loadAuditLogs();
+            if (currentUser && currentUser.role === 'admin') {
+                await loadAdminMaster();
+                await loadSyncStatus();
+            }
+        }
+
+        async function syncAndReloadData() {
+            Swal.fire({
+                title: 'Menyinkronkan dari Sheets...',
+                text: 'Mengunduh perubahan data dari Google Sheets',
+                allowOutsideClick: false,
+                didOpen: () => Swal.showLoading(),
+                customClass: { popup: 'dark-swal' }
+            });
+
+            try {
+                const res = await fetch('/api/sync', {method: 'POST'});
+                const data = await res.json();
+                if (res.ok) {
+                    await refreshAllData();
+                    Swal.fire({ icon: 'success', title: 'Sync Berhasil', text: data.message, customClass: { popup: 'dark-swal' } });
+                } else {
+                    Swal.fire({ icon: 'error', title: 'Gagal Sync', text: data.message, customClass: { popup: 'dark-swal' } });
+                }
+            } catch (err) {
+                Swal.fire({ icon: 'error', title: 'Terputus', text: 'Gagal terhubung ke backend!', customClass: { popup: 'dark-swal' } });
+            }
+        }
+
+        async function loadAuditLogs() {
+            try {
+            const res = await fetch('/api/admin/database');
+            const data = await res.json();
+            const lBody = document.getElementById('overview_logs_body');
+            const logBadge = document.getElementById('total_log_badge');
+        
+            if (!data.logs || data.logs.length === 0) {
+                lBody.innerHTML = `<tr><td colspan="5" class="py-4 text-center text-gray-500">Belum ada log pemindaian.</td></tr>`;
+                logBadge.innerText = `0 Transaksi`;}
+            else{
+                logBadge.innerText = `${data.logs.length} Transaksi Terbaru (maks. 500)`;
+                lBody.innerHTML = data.logs.map(l => `
+                <tr class="hover:bg-gray-800/50 transition">
+                    <td class="py-3 px-4 text-gray-500 font-mono">#${l.id}</td>
+                    <td class="py-3 px-4 font-mono text-cyan-400 font-bold">${l.ID_Sarana}</td>
+                    <td class="py-3 px-4">
+                        <span class="px-2.5 py-1 rounded-md bg-blue-950 text-blue-300 font-semibold text-[11px] border border-blue-900">
+                            ${l.Alur_Scan}
+                        </span>
+                    </td>
+                    <td class="py-3 px-4 font-bold text-amber-400">${l.Vendor || '-'}</td>
+                    <td class="py-3 px-4 text-gray-400 font-mono text-[11px]">${l.Waktu_Scan}</td>
+                </tr>
+            `).join('');}}
+            catch(e) {
+                console.error("Error load audit logs:", e);}}
+
+        async function loadAdminMaster() {
+            try {
+                const res = await fetch('/api/admin/database');
+                const data = await res.json();
+                const mBody = document.getElementById('db_master_body');
+            if (!data.master || data.master.length === 0) {
+                mBody.innerHTML = `<tr><td colspan="5" class="py-4 text-center text-gray-500">Belum ada data master. Klik Sync!</td></tr>`;}
+            else {
+                mBody.innerHTML = data.master.map(m => `
+                    <tr class="hover:bg-gray-800/50 transition">
+                        <td class="py-3 px-4 font-mono font-bold text-blue-400">${m.ID_Sarana}</td>
+                        <td class="py-3 px-4 font-semibold text-white">${m.Nama_Sarana}</td>
+                        <td class="py-3 px-4 text-gray-300">${m.No_Sarana || '-'}</td>
+                        <td class="py-3 px-4 text-amber-400 font-bold">${m.Vendor || '-'}</td>
+                        <td class="py-3 px-4 text-center">
+                            <span class="px-2.5 py-1 rounded-md bg-gray-800 text-amber-400 font-mono text-[11px] font-bold border border-gray-700">${m.Status_Saat_Ini}</span>
+                        </td>
+                    </tr>
+                `).join('');}}
+            catch(e) {
+                console.error("Error load master:", e);}}
+
+        async function loadAdminUsers() {
+            try {
+                const res = await fetch('/api/admin/users');
+                const data = await res.json();
+                
+                const uBody = document.getElementById('db_users_body');
+                const userBadge = document.getElementById('total_user_badge');
+
+                if (!data.users || data.users.length === 0) {
+                    uBody.innerHTML = `<tr><td colspan="6" class="py-4 text-center text-gray-500">Belum ada akun pengguna.</td></tr>`;
+                    userBadge.innerText = `0 User`;
+                } else {
+                    userBadge.innerText = `${data.users.length} User`;
+                    uBody.innerHTML = data.users.map(u => {
+                        let roleBadge = '<span class="px-2.5 py-1 rounded-md bg-amber-950 text-amber-400 font-mono text-[10px] font-bold border border-amber-900">GUEST</span>';
+                        if (u.role === 'admin') roleBadge = '<span class="px-2.5 py-1 rounded-md bg-blue-950 text-blue-400 font-mono text-[10px] font-bold border border-blue-900">ADMIN</span>';
+                        else if (u.role === 'member') roleBadge = '<span class="px-2.5 py-1 rounded-md bg-emerald-950 text-emerald-400 font-mono text-[10px] font-bold border border-emerald-900">OPERATOR</span>';
+
+                        const actionBtn = u.is_primary 
+                            ? `<span class="text-gray-600 text-[10px] font-mono italic">Primary</span>`
+                            : `<button onclick="deleteUser(${u.id}, '${u.username}')" class="bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/30 px-2.5 py-1 rounded-lg text-[10px] font-bold transition">🗑 Hapus</button>`;
+
+                        return `
+                            <tr class="hover:bg-gray-800/50 transition">
+                                <td class="py-3 px-3 font-mono font-bold text-amber-400">${u.npk}</td>
+                                <td class="py-3 px-3 text-white font-bold">${u.nama_lengkap}</td>
+                                <td class="py-3 px-3 font-mono text-cyan-400">${u.username}</td>
+                                
+                                <td class="py-3 px-3 text-gray-300">${u.jabatan}</td>
+                                <td class="py-3 px-3 text-center">${roleBadge}</td>
+                                <td class="py-3 px-3 text-center">${actionBtn}</td>
+                            </tr>
+                        `;
+                    }).join('');
+                }
+            } catch(e) {
+                console.error("Error load users:", e);
+            }
+        }
+
+        async function handleCreateUser(e) {
+            e.preventDefault();
+            const formData = new FormData();
+            formData.append('nama_lengkap', document.getElementById('reg_nama').value);
+            formData.append('npk', document.getElementById('reg_npk').value);
+            formData.append('jabatan', document.getElementById('reg_jabatan').value);
+            formData.append('username', document.getElementById('reg_username').value);
+            formData.append('role', document.getElementById('reg_role').value);
+            formData.append('password', document.getElementById('reg_password').value);
+
+            const res = await fetch('/api/admin/users/create', { method: 'POST', body: formData });
+            const data = await res.json();
+
+            if (res.ok) {
+                Swal.fire({ icon: 'success', title: 'Berhasil', text: data.message, customClass: { popup: 'dark-swal' } });
+                document.getElementById('reg_nama').value = '';
+                document.getElementById('reg_npk').value = '';
+                document.getElementById('reg_jabatan').value = '';
+                document.getElementById('reg_username').value = '';
+                document.getElementById('reg_password').value = '';
+                await loadAdminUsers();
+            } else {
+                Swal.fire({ icon: 'error', title: 'Gagal Buat Akun', text: data.message, customClass: { popup: 'dark-swal' } });
+            }
+        }
+
+        async function deleteUser(userId, username) {
+            const confirm = await Swal.fire({
+                title: 'Hapus Akun Pengguna?',
+                text: `Apakah Anda yakin ingin menghapus akun '${username}' dari sistem?`,
+                icon: 'warning',
+                showCancelButton: true,
+                confirmButtonColor: '#dc2626',
+                cancelButtonColor: '#374151',
+                confirmButtonText: 'Ya, Hapus Akun',
+                cancelButtonText: 'Batal',
+                customClass: { popup: 'dark-swal' }
+            });
+
+            if (confirm.isConfirmed) {
+                try {
+                    const res = await fetch(`/api/admin/users/delete/${userId}`, { method: 'DELETE' });
+                    const result = await res.json();
+
+                    if (res.ok) {
+                        Swal.fire({ icon: 'success', title: 'Terhapus!', text: result.message, customClass: { popup: 'dark-swal' }, confirmButtonColor: '#2563eb' });
+                        await loadAdminUsers();
+                    } else {
+                        Swal.fire({ icon: 'error', title: 'Gagal Hapus', text: result.message, customClass: { popup: 'dark-swal' } });
+                    }
+                } catch (err) {
+                    Swal.fire({ icon: 'error', title: 'Koneksi Terputus', text: 'Gagal memproses penghapusan akun!', customClass: { popup: 'dark-swal' } });
+                }
+            }
+        }
+
+        let masterSaranaList = [];
+
+        // LOAD SEMUA MASTER SARANA & ISI DROPDOWN JENIS PART
+        async function loadMasterToQRSelect() {
+            try {
+                const res = await fetch('/api/admin/database');
+                const data = await res.json();
+                masterSaranaList = (data.master || []).filter(m => !m.Status_Saat_Ini.startsWith('DELETED'));
+                
+                const qrSelect = document.getElementById('qr_select_part');
+                qrSelect.innerHTML = `<option value="">-- Pilih Jenis Part / Sarana --</option>`;
+                
+                // Ambil unique Nama_Sarana (Jenis Part)
+                const uniqueParts = [...new Set(masterSaranaList.map(item => item.Nama_Sarana))].filter(Boolean);
+                
+                uniqueParts.forEach(partName => {
+                    const count = masterSaranaList.filter(m => m.Nama_Sarana === partName).length;
+                    const option = document.createElement('option');
+                    option.value = partName;
+                    option.innerHTML = `${partName} (${count} Unit)`;
+                    qrSelect.appendChild(option);
+                });
+            } catch(e) {
+                console.error("Error load master QR select:", e);
+            }
+        }
+
+        // GENERATE KERTAS A4 MULTI-HALAMAN UNTUK SATU JENIS PART
+        function generateBatchQRCodeA4() {
+            const selectedPart = document.getElementById('qr_select_part').value;
+            const wrapper = document.getElementById('a4_preview_wrapper');
+            wrapper.innerHTML = '';
+
+            if (!selectedPart) {
+                wrapper.innerHTML = `<div class="text-gray-500 text-xs text-center py-12">Silakan pilih **Jenis Part / Sarana** di atas untuk menampilkan seluruh label QR Code dalam format lembar A4.</div>`;
+                return;
+            }
+
+            // Filter sarana berdasarkan Jenis Part yang dipilih
+            const filteredUnits = masterSaranaList.filter(m => m.Nama_Sarana === selectedPart);
+            
+            if (filteredUnits.length === 0) {
+                wrapper.innerHTML = `<div class="text-red-400 text-xs text-center py-12">Tidak ada data unit untuk part '${selectedPart}'.</div>`;
+                return;
+            }
+
+            const ITEMS_PER_PAGE = 12; // 12 Label per Lembar Kertas A4 (3 Kolom x 4 Baris)
+            const totalPages = Math.ceil(filteredUnits.length / ITEMS_PER_PAGE);
+
+            for (let page = 0; page < totalPages; page++) {
+                const pageUnits = filteredUnits.slice(page * ITEMS_PER_PAGE, (page + 1) * ITEMS_PER_PAGE);
+                
+                // Buat Elemen Lembar Kertas A4
+                const pageElement = document.createElement('div');
+                pageElement.className = 'a4-page';
+                
+                let pageHeaderHtml = `
+                    <div class="border-b-2 border-black pb-2 mb-4 flex justify-between items-center text-black">
+                        <div>
+                            <h3 class="font-black text-sm uppercase tracking-wider">PT. AUTOPLASTIK INDONESIA</h3>
+                            <p class="text-[10px] font-bold text-gray-700">BATCH QR CODE LABEL - PART: ${selectedPart.toUpperCase()}</p>
+                        </div>
+                        <div class="text-right">
+                            <span class="text-[10px] font-mono font-bold bg-black text-white px-2 py-1 rounded">HALAMAN ${page + 1} / ${totalPages}</span>
+                            <p class="text-[9px] text-gray-500 font-mono mt-1">Total: ${filteredUnits.length} Unit</p>
+                        </div>
+                    </div>
+                    <div class="qr-grid-container" id="grid_page_${page}"></div>
+                `;
+                
+                pageElement.innerHTML = pageHeaderHtml;
+                wrapper.appendChild(pageElement);
+
+                const gridContainer = pageElement.querySelector(`#grid_page_${page}`);
+
+                // Render tiap Kartu Label QR Code
+                pageUnits.forEach((unit, idx) => {
+                    const card = document.createElement('div');
+                    card.className = 'qr-label-card';
+                    const qrCanvasId = `qrcode_canvas_${page}_${idx}`;
+
+                    card.innerHTML = `
+                        <div class="border-b border-black pb-1 mb-2 w-full flex justify-between items-center">
+                            <span class="text-[8px] font-black uppercase tracking-tight text-gray-700">PT. API</span>
+                            <span class="text-[8px] font-mono font-bold">#${unit.No_Sarana || idx+1}</span>
+                        </div>
+                        <div id="${qrCanvasId}" class="p-1 bg-white rounded border border-gray-200"></div>
+                        <div class="w-full mt-2">
+                            <p class="font-mono text-xs font-black text-black tracking-wider leading-none">${unit.ID_Sarana}</p>
+                            <p class="text-[9px] font-bold text-gray-800 uppercase mt-1 truncate">${unit.Nama_Sarana}</p>
+                        </div>
+                    `;
+
+                    gridContainer.appendChild(card);
+
+                    // Render Gambar QR Code
+                    new QRCode(document.getElementById(qrCanvasId), {
+                        text: unit.ID_Sarana,
+                        width: 80,
+                        height: 80,
+                        colorDark : "#000000",
+                        colorLight : "#ffffff",
+                        correctLevel : QRCode.CorrectLevel.H
+                    });
+                });
+            }
+        }
+
+        function downloadAsPDF() {
+            const element = document.getElementById('a4_preview_wrapper');
+            const selectedPart = document.getElementById('qr_select_part').value || 'ALL';
+
+            const opt = {
+                margin:       0,
+                filename:     `QR_Code_Labels_${selectedPart}.pdf`,
+                image:        { type: 'jpeg', quality: 0.98 },
+                html2canvas:  { scale: 2 },
+                jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' }
+                }; html2pdf().set(opt).from(element).save();}
+
+        function printQRCodeLabel() {
+            window.print();
+        }
+
+       function initStationScanner() {
+            // Konfigurasi agar mengutamakan Kamera Belakang (environment)
+            const config = { 
+                fps: 15, 
+                qrbox: 250,
+                videoConstraints: {
+                    facingMode: { ideal: "environment" } // Mengarahkan langsung ke Kamera Belakang HP
+                }
+            };
+
+            currentScanner = new Html5QrcodeScanner("reader_container", config, /* verbose= */ false);
+            
+            currentScanner.render(async (decodedText) => {
+                if (isScanningLocked) return;
+                isScanningLocked = true;
+                try { currentScanner.pause(true); } catch(e){}
+                
+                document.getElementById('station_id_input').value = decodedText;
+                await submitCurrentStation();
+                
+                setTimeout(() => { 
+                    try { currentScanner.resume(); } catch(e){} 
+                    isScanningLocked = false; 
+                }, 800); 
+            });
+        }
+
+        async function submitCurrentStation() {
+            const id_sarana = document.getElementById('station_id_input').value.trim();
+            if (!id_sarana) return;
+            const formData = new FormData();
+            formData.append('id_sarana', id_sarana);
+            formData.append('alur', currentAlurVal);
+
+            const res = await fetch('/api/scan', { method: 'POST', body: formData });
+            const result = await res.json();
+            
+            Swal.fire({ icon: res.ok ? 'success' : 'error', title: res.ok ? 'Scan Berhasil' : 'Gagal', text: result.message, customClass: { popup: 'dark-swal' } });
+            
+            if (res.ok) {
+                document.getElementById('station_id_input').value = '';
+                await refreshAllData();
+            }
+        }
+
+        async function loadDashboard() {
+            try {
+                const res = await fetch('/api/dashboard');
+                const data = await res.json();
+                
+                const tbody = document.getElementById('table_body');
+                const selisihList = document.getElementById('selisih_list');
+                const totalJenisBadge = document.getElementById('total_jenis_badge');
+                
+                tbody.innerHTML = '';
+                selisihList.innerHTML = '';
+                totalJenisBadge.innerText = `${data.length} Jenis`;
+
+                let countSelisihTotal = 0;
+
+                data.forEach(item => {
+                    const isSelisih = item.Lost > 0;
+                    
+                    const statusBadge = isSelisih 
+                        ? `<span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-bold bg-red-500/10 text-red-400 border border-red-500/20">⚠️️ Selisih ${item.Lost}</span>`
+                        : `<span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">✓ Sesuai</span>`;
+
+                    tbody.innerHTML += `
+                        <tr class="hover:bg-gray-800/40 transition">
+                            <td class="py-3.5 px-6 font-semibold text-white flex items-center gap-2">
+                                <span class="w-2 h-2 rounded-full ${isSelisih ? 'bg-red-400' : 'bg-blue-400'}"></span>
+                                ${item.Nama_Part}
+                            </td>
+                            <td class="py-3.5 px-4 text-center text-gray-200 font-bold">${item.Total_QTY}</td>
+                            <td class="py-3.5 px-4 text-center text-blue-400 font-bold">${item.PT_API}</td>
+                            <td class="py-3.5 px-4 text-center text-amber-400 font-bold">${item.Truck}</td>
+                            <td class="py-3.5 px-4 text-center text-cyan-400 font-bold">${item.L2_Vendor}</td>
+                            <td class="py-3.5 px-6 text-center">${statusBadge}</td>
+                        </tr>
+                    `;
+
+                    if (isSelisih) {
+                        countSelisihTotal++;
+                        selisihList.innerHTML += `
+                            <div class="bg-red-950/20 border border-red-900/40 p-4 rounded-xl">
+                                <div class="flex justify-between items-center mb-1">
+                                    <span class="font-bold text-white text-sm">${item.Nama_Part}</span>
+                                    <span class="bg-red-500/20 text-red-400 text-xs font-extrabold px-2.5 py-0.5 rounded-full border border-red-500/30">${item.Lost} unit</span>
+                                </div>
+                                <p class="text-xs text-red-300/70">${item.Lost} unit HILANG/tertinggal di Truk</p>
+                            </div>
+                        `;
+                    }
+                });
+
+                if (countSelisihTotal === 0) {
+                    selisihList.innerHTML = `
+                        <div class="bg-emerald-950/10 border border-emerald-900/30 p-4 rounded-xl text-center">
+                            <p class="text-xs text-emerald-400 font-semibold">🎉 Semua stok sarana sesuai (Tidak ada selisih)</p>
+                        </div>
+                    `;
+                }
+            } catch(e) {
+                console.error("Error load dashboard:", e);
+            }
+        }
+
+        async function finishVendorUnloading() {
+            const confirm = await Swal.fire({
+                title: 'Konfirmasi Unloading Vendor',
+                text: 'Selesaikan pembongkaran muatan di Vendor? Unit yang belum ter-scan akan otomatis dikoreksi.',
+                icon: 'question',
+                showCancelButton: true,
+                confirmButtonColor: '#d97706',
+                cancelButtonColor: '#374151',
+                confirmButtonText: 'Ya, Selesaikan Unloading',
+                cancelButtonText: 'Batal',
+                customClass: { popup: 'dark-swal' }
+            });
+
+            if (confirm.isConfirmed) {
+                try {
+                    const res = await fetch('/api/finish-vendor-unloading', { method: 'POST' });
+                    const result = await res.json();
+                    
+                    let iconType = 'success';
+                    if (result.status === 'warning') iconType = 'warning';
+                    else if (result.status === 'info') iconType = 'success';
+
+                    Swal.fire({
+                        icon: iconType,
+                        title: 'Unloading Selesai',
+                        text: result.message,
+                        customClass: { popup: 'dark-swal' },
+                        confirmButtonColor: '#2563eb'
+                    });
+
+                    await refreshAllData();
+                } catch (err) {
+                    Swal.fire({ icon: 'error', title: 'Koneksi Terputus', text: 'Gagal memproses penutupan unloading!', customClass: { popup: 'dark-swal' } });
+                }
+            }
+        }
+
+        async function syncData() {
+            const res = await fetch('/api/sync', {method: 'POST'});
+            const data = await res.json();
+            Swal.fire({ icon: res.ok ? 'success' : 'error', title: 'Sync', text: data.message, customClass: { popup: 'dark-swal' } });
+            if (res.ok) await refreshAllData();
+        }
+
+        document.getElementById('station_id_input').addEventListener('keypress', (e) => { if (e.key === 'Enter') submitCurrentStation(); });
+    
+        function openAddStokModal() {
+        document.getElementById('add_stok_modal').classList.remove('hidden');}
+
+        function closeAddStokModal() {
+        document.getElementById('add_stok_modal').classList.add('hidden');
+        document.getElementById('add_prefix_id').value = '';
+        document.getElementById('add_nama_sarana').value = '';
+        document.getElementById('add_qty').value = '1';
+        document.getElementById('add_vendor').value = '';}
+
+        async function handleAddStokSubmit(e) {
+            e.preventDefault();
+
+            Swal.fire({
+                title: 'Memproses Tambah Stok...',
+                text: 'Generasi ID Sarana & menyimpan ke database',
+                allowOutsideClick: false,
+                didOpen: () => Swal.showLoading(),
+                customClass: { popup: 'dark-swal' }});
+
+            const formData = new FormData();
+            formData.append('prefix_id', document.getElementById('add_prefix_id').value);
+            formData.append('nama_sarana', document.getElementById('add_nama_sarana').value);
+            formData.append('qty', document.getElementById('add_qty').value);
+            formData.append('vendor', document.getElementById('add_vendor').value);
+
+            try {
+                const res = await fetch('/api/admin/sarana/add-batch', { method: 'POST', body: formData });
+                const result = await res.json();
+
+                if (res.ok) {
+                    closeAddStokModal();
+                    await refreshAllData();
+                    Swal.fire({
+                        icon: 'success',
+                        title: 'Stok Berhasil Ditambahkan!',
+                        text: result.message,
+                        customClass: { popup: 'dark-swal' },
+                        confirmButtonColor: '#2563eb'});} 
+                else {
+                    Swal.fire({
+                        icon: 'error',
+                        title: 'Gagal Tambah Stok',
+                        text: result.message,
+                        customClass: { popup: 'dark-swal' }});}}
+                catch (err) {
+                    Swal.fire({
+                        icon: 'error',
+                        title: 'Koneksi Terputus',
+                        text: 'Gagal terhubung ke server!',
+                        customClass: { popup: 'dark-swal' }});}}
+        
+        async function openDeleteNgModal() {
+            try {
+                const res = await fetch('/api/admin/database');
+                const data = await res.json();
+                const selectEl = document.getElementById('delete_id_sarana');
+                selectEl.innerHTML = '<option value="">-- Pilih ID Sarana --</option>';
+        
+                // Filter hanya ID yang belum di-delete
+                const activeUnits = (data.master || []).filter(m => !m.Status_Saat_Ini.startsWith('DELETED'));
+        
+                if (activeUnits.length === 0) {
+                    selectEl.innerHTML = '<option value="">-- Tidak Ada Stok Aktif --</option>';}
+                else {
+                    activeUnits.forEach(u => {
+                        selectEl.innerHTML += `<option value="${u.ID_Sarana}">${u.ID_Sarana} - ${u.Nama_Sarana} (${u.Status_Saat_Ini})</option>`;});}
+                document.getElementById('delete_ng_modal').classList.remove('hidden');}
+            catch(e)
+                {Swal.fire({ icon: 'error', title: 'Gagal Memuat Data', text: 'Gagal mengambil daftar ID Sarana', customClass: { popup: 'dark-swal' } });}}
+
+        function closeDeleteNgModal() {
+            document.getElementById('delete_ng_modal').classList.add('hidden');}
+
+        async function handleDeleteNgSubmit(e) {
+            e.preventDefault();
+            const idSarana = document.getElementById('delete_id_sarana').value;
+            const alasan = document.getElementById('delete_alasan').value;
+    
+            if (!idSarana) return;
+    
+            const confirm = await Swal.fire({
+                title: 'Konfirmasi Hapus Stok',
+                text: `Apakah Anda yakin ingin menghapus '${idSarana}' dari stok karena ${alasan}?`,
+                icon: 'warning',
+                showCancelButton: true,
+                confirmButtonColor: '#dc2626',
+                cancelButtonColor: '#374151',
+                confirmButtonText: 'Ya, Hapus Stok',
+                cancelButtonText: 'Batal',
+                customClass: { popup: 'dark-swal' }});
+    
+            if (confirm.isConfirmed) {
+                Swal.fire({
+                    title: 'Memproses Hapus Stok...',
+                    allowOutsideClick: false,
+                    didOpen: () => Swal.showLoading(),
+                    customClass: { popup: 'dark-swal' }});
+        
+                const formData = new FormData();
+                formData.append('id_sarana', idSarana);
+                formData.append('alasan', alasan);
+                try {
+                    const res = await fetch('/api/admin/sarana/delete-ng', { method: 'POST', body: formData });
+                    const result = await res.json();
+                    if (res.ok) {
+                        closeDeleteNgModal();
+                        await refreshAllData();
+                        Swal.fire({ icon: 'success', title: 'Stok Dihapus', text: result.message, customClass: { popup: 'dark-swal' } });}
+                    else {
+                        Swal.fire({ icon: 'error', title: 'Gagal Hapus', text: result.message, customClass: { popup: 'dark-swal' } });}}
+                catch (err) {
+                    Swal.fire({ icon: 'error', title: 'Error', text: 'Gagal memproses ke server!', customClass: { popup: 'dark-swal' } });}}}                
+    
+    </script>
+
+    <!-- MODAL TAMBAH STOK SARANA -->
+<div id="add_stok_modal" class="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4 hidden">
+    <div class="dark-card p-6 rounded-3xl max-w-md w-full border border-gray-800 shadow-2xl space-y-5">
+        <div class="flex justify-between items-center border-b border-gray-800 pb-3">
+            <div>
+                <h3 class="text-lg font-black text-amber-400">➕ Tambah Stok Sarana Baru</h3>
+                <p class="text-xs text-gray-400">Generasi otomatis ID & Barcode Sarana</p>
+            </div>
+            <button onclick="closeAddStokModal()" class="text-gray-400 hover:text-white font-bold text-lg p-1">✕</button>
+        </div>
+
+        <form onsubmit="handleAddStokSubmit(event)" class="space-y-4">
+            <div>
+                <label class="block text-xs font-bold uppercase text-gray-400 mb-1">Prefix / Awalan ID Sarana</label>
+                <input type="text" id="add_prefix_id" required class="w-full bg-gray-900 border border-gray-700 rounded-xl px-3.5 py-2.5 text-xs text-white focus:outline-none focus:border-amber-500 font-mono" placeholder="Contoh: BOX-A atau TROLLEY-B">
+                <p class="text-[10px] text-gray-500 mt-1">*Sistem otomatis membuat nomor urut 3 digit (misal: BOX-A-001)</p>
+            </div>
+            <div>
+                <label class="block text-xs font-bold uppercase text-gray-400 mb-1">Nama Part / Sarana</label>
+                <input type="text" id="add_nama_sarana" required class="w-full bg-gray-900 border border-gray-700 rounded-xl px-3.5 py-2.5 text-xs text-white focus:outline-none focus:border-amber-500" placeholder="Contoh: Box A">
+            </div>
+            <div class="grid grid-cols-2 gap-3">
+                <div>
+                    <label class="block text-xs font-bold uppercase text-gray-400 mb-1">Total QTY (Unit)</label>
+                    <input type="number" id="add_qty" min="1" max="100" value="1" required class="w-full bg-gray-900 border border-gray-700 rounded-xl px-3.5 py-2.5 text-xs text-white focus:outline-none focus:border-amber-500 font-bold">
+                </div>
+                <div>
+                    <label class="block text-xs font-bold uppercase text-gray-400 mb-1">Vendor</label>
+                    <select id="add_vendor" required class="w-full bg-gray-900 border border-gray-700 rounded-xl px-3.5 py-2.5 text-xs text-white focus:outline-none focus:border-amber-500 font-bold">
+                        <option value="">-- Pilih Vendor --</option>
+                        <option value="AUP">AUP</option>
+                        <option value="ASN">ASN</option>
+                        <option value="HASURA">HASURA</option>
+                        <option value="GBU">GBU</option>
+                        <option value="MUI">MUI</option>
+                        <option value="ABC">ABC</option>
+                        <option value="WANMEI">WANMEI</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="pt-2 flex gap-2">
+                <button type="button" onclick="closeAddStokModal()" class="w-1/3 bg-gray-800 hover:bg-gray-700 text-gray-300 font-bold py-3 rounded-xl text-xs transition">Batal</button>
+                <button type="submit" class="w-2/3 bg-amber-600 hover:bg-amber-500 text-white font-bold py-3 rounded-xl shadow-lg shadow-amber-600/20 transition text-xs">💾 Simpan & Add Stok</button>
+            </div>
+        </form>
+    </div>
+</div>
+<!-- MODAL HAPUS STOK NG -->
+<div id="delete_ng_modal" class="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4 hidden">
+    <div class="dark-card p-6 rounded-3xl max-w-md w-full border border-gray-800 shadow-2xl space-y-5">
+        <div class="flex justify-between items-center border-b border-gray-800 pb-3">
+            <div>
+                <h3 class="text-lg font-black text-red-400">🗑️ Hapus Stok Sarana (Defect / NG)</h3>
+                <p class="text-xs text-gray-400">Pilih ID Part aktif yang ingin dikeluarkan dari stok</p>
+            </div>
+            <button onclick="closeDeleteNgModal()" class="text-gray-400 hover:text-white font-bold text-lg p-1">✕</button>
+        </div>
+        <form onsubmit="handleDeleteNgSubmit(event)" class="space-y-4">
+            <div>
+                <label class="block text-xs font-bold uppercase text-gray-400 mb-1">Pilih ID Sarana / Part (Stok Aktif)</label>
+                <select id="delete_id_sarana" required class="w-full bg-gray-900 border border-gray-700 rounded-xl px-3.5 py-2.5 text-xs text-white focus:outline-none focus:border-red-500 font-mono">
+                    <option value="">-- Memuat Data ID... --</option>
+                </select>
+            </div>
+            <div>
+                <label class="block text-xs font-bold uppercase text-gray-400 mb-1">Alasan Penghapusan (NG)</label>
+                <select id="delete_alasan" required class="w-full bg-gray-900 border border-gray-700 rounded-xl px-3.5 py-2.5 text-xs text-white focus:outline-none focus:border-red-500">
+                    <option value="Part Retak / Pecah">Part Retak / Pecah</option>
+                    <option value="Afval / Scrap Production">Afval / Scrap Production</option>
+                    <option value="Salah Input / Duplikat">Salah Input / Duplikat</option>
+                    <option value="Hilang / Damaged Logistics">Hilang / Damaged Logistics</option>
+                </select>
+            </div>
+            <div class="pt-2 flex gap-2">
+                <button type="button" onclick="closeDeleteNgModal()" class="w-1/3 bg-gray-800 hover:bg-gray-700 text-gray-300 font-bold py-3 rounded-xl text-xs transition">Batal</button>
+                <button type="submit" class="w-2/3 bg-red-600 hover:bg-red-500 text-white font-bold py-3 rounded-xl shadow-lg shadow-red-600/20 transition text-xs">🗑️ Hapus dari Stok</button>
+            </div>
+        </form>
+    </div>
+</div>
+</body>
+</html>

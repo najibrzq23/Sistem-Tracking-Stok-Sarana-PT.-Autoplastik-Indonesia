@@ -1,0 +1,15 @@
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.env
+.env.*
+!.env.example
+*.db
+*.db-*
+*.sqlite*
+*.exe
+*.rar
+*.zip
+.vercel/
+.vscode/
