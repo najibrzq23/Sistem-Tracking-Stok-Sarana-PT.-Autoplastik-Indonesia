@@ -925,13 +925,77 @@ let dashboardInterval = null; // Variabel untuk menyimpan timer auto-refresh
         async function resetUserPassword(userId, username) {
             const result = await Swal.fire({
                 title: 'Reset Password',
-                html: `<p class="text-sm mb-3">Akun: <strong>${username}</strong></p>
-                    <label for="reset_pass">Password baru (12–256 karakter)</label>
-                    <input id="reset_pass" type="password" class="swal2-input" minlength="12" maxlength="256" autocomplete="new-password">
-                    <label for="reset_confirm">Konfirmasi password</label>
-                    <input id="reset_confirm" type="password" class="swal2-input" minlength="12" maxlength="256" autocomplete="new-password">
-                    <label style="display:block;margin:12px"><input id="reset_show" type="checkbox"> Tampilkan password</label>
-                    <p class="text-xs">Sesi login lama akan berakhir. Berikan password baru kepada pemilik akun.</p>`,
+                html: `
+                    <p style="margin-bottom:20px; font-size:14px;">
+                        Akun: <strong>${username}</strong>
+                    </p>
+                    <div style="
+                        display:grid;
+                        grid-template-columns:100px minmax(0,1fr);
+                        gap:14px 12px;
+                        align-items:center;
+                        text-align:left;">
+                        <label for="reset_pass" style="font-size:14px;">
+                            Password
+                        </label>
+                        <input
+                            id="reset_pass"
+                            type="password"
+                            minlength="12"
+                            maxlength="256"
+                            autocomplete="new-password"
+                            placeholder="Minimal 12 karakter"
+                            style="
+                                width:100%;
+                                min-width:0;
+                                box-sizing:border-box;
+                                padding:12px;
+                                background:#0b1220;
+                                color:#fff;
+                                border:1px solid #475569;
+                                border-radius:10px;
+                                font-size:16px;">
+                        <label for="reset_confirm" style="font-size:14px;">
+                            Konfirmasi
+                        </label>
+                        <input
+                            id="reset_confirm"
+                            type="password"
+                            minlength="12"
+                            maxlength="256"
+                            autocomplete="new-password"
+                            placeholder="Ulangi password"
+                            style="
+                                width:100%;
+                                min-width:0;
+                                box-sizing:border-box;
+                                padding:12px;
+                                background:#0b1220;
+                                color:#fff;
+                                border:1px solid #475569;
+                                border-radius:10px;
+                                font-size:16px;">
+                    </div>
+                    <label for="reset_show" style="
+                        display:flex;
+                        align-items:center;
+                        gap:8px;
+                        margin-top:16px;
+                        font-size:14px;
+                        cursor:pointer;">
+                        <input id="reset_show" type="checkbox">
+                        Tampilkan password
+                    </label>
+
+                    <p style="
+                        margin-top:16px;
+                        font-size:12px;
+                        line-height:1.6;
+                        color:#94a3b8;
+                        text-align:left;">
+                        Sesi login lama akan berakhir.
+                        Berikan password baru kepada pemilik akun.
+                    </p>`,
                 showCancelButton: true, confirmButtonText: 'Simpan Password', cancelButtonText: 'Batal',
                 background: '#111827', color: '#fff', showLoaderOnConfirm: true,
                 allowOutsideClick: () => !Swal.isLoading(),
