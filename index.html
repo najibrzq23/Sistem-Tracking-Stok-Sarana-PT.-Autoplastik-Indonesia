@@ -408,8 +408,13 @@ button:disabled { opacity: .55; cursor: not-allowed; }
                 <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
                     <div class="lg:col-span-5 dark-card p-6 rounded-2xl border border-gray-800 shadow-xl space-y-5">
                         <div class="border-b border-gray-800 pb-3">
-                            <h2 class="text-lg font-black text-amber-400">➕ Buat Akun Pengguna Baru</h2>
-                            <p class="text-xs text-gray-400">Daftarkan akun login pegawai baru ke database</p>
+                            <button onclick="toggleSidebar()" class="p-2 rounded-lg bg-gray-800 hover:bg-gray-700 text-white border border-gray-700 transition">
+                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M4 6h16M4 12h16M4 18h16"></path></svg>
+                            </button>
+                            <div>
+                                <h2 class="text-lg font-black text-amber-400">Buat Akun Pengguna Baru</h2>
+                                <p class="text-xs text-gray-400">Daftarkan akun login pegawai baru ke database</p>
+                            </div>
                         </div>
 
                         <form onsubmit="handleCreateUser(event)" class="space-y-4">
@@ -452,13 +457,8 @@ button:disabled { opacity: .55; cursor: not-allowed; }
                     <div class="lg:col-span-7 dark-card p-6 rounded-2xl border border-gray-800 shadow-xl space-y-4 flex flex-col justify-between">
                         <div class="flex items-center justify-between border-b border-gray-800 pb-3">
                             <div class="flex items-center gap-3">
-                                <button onclick="toggleSidebar()" class="p-2 rounded-lg bg-gray-800 hover:bg-gray-700 text-white border border-gray-700 transition">
-                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M4 6h16M4 12h16M4 18h16"></path></svg>
-                                </button>
-                                <div>
-                                    <h2 class="text-lg font-black text-white">👤 Daftar Akun System</h2>
-                                    <p class="text-xs text-gray-400">Pengguna terdaftar dalam database lokal</p>
-                                </div>
+                                <h2 class="text-lg font-black text-white">👤 Daftar Akun System</h2>
+                                <p class="text-xs text-gray-400">Pengguna terdaftar dalam database lokal</p>
                             </div>
                             <span id="total_user_badge" class="text-xs bg-gray-800 text-amber-400 font-bold px-3 py-1 rounded-full border border-gray-700">0 User</span>
                         </div>
@@ -814,7 +814,7 @@ let dashboardInterval = null; // Variabel untuk menyimpan timer auto-refresh
                                 
                                 <td class="py-3 px-3 text-gray-300">${u.jabatan}</td>
                                 <td class="py-3 px-3 text-center">${roleBadge}</td>
-                                <td class="py-3 px-3 text-center">${actionBtn}</td>
+                                <td class="py-3 px-3 text-center"><div class="flex flex-wrap gap-2 justify-center"><button onclick="resetUserPassword(${u.id}, '${u.username}')" class="bg-blue-500/10 hover:bg-blue-500/20 text-blue-300 border border-blue-500/30 px-3 py-2 rounded-lg text-xs font-bold">🔑 Reset Password</button>${actionBtn}</div></td>
                             </tr>
                         `;
                     }).join('');
@@ -847,6 +847,52 @@ let dashboardInterval = null; // Variabel untuk menyimpan timer auto-refresh
                 await loadAdminUsers();
             } else {
                 Swal.fire({ icon: 'error', title: 'Gagal Buat Akun', text: data.message, customClass: { popup: 'dark-swal' } });
+            }
+        }
+
+        async function resetUserPassword(userId, username) {
+            const result = await Swal.fire({
+                title: 'Reset Password',
+                html: `<p class="text-sm mb-3">Akun: <strong>${username}</strong></p>
+                    <label for="reset_pass">Password baru (12–256 karakter)</label>
+                    <input id="reset_pass" type="password" class="swal2-input" minlength="12" maxlength="256" autocomplete="new-password">
+                    <label for="reset_confirm">Konfirmasi password</label>
+                    <input id="reset_confirm" type="password" class="swal2-input" minlength="12" maxlength="256" autocomplete="new-password">
+                    <label style="display:block;margin:12px"><input id="reset_show" type="checkbox"> Tampilkan password</label>
+                    <p class="text-xs">Sesi login lama akan berakhir. Berikan password baru kepada pemilik akun.</p>`,
+                showCancelButton: true, confirmButtonText: 'Simpan Password', cancelButtonText: 'Batal',
+                background: '#111827', color: '#fff', showLoaderOnConfirm: true,
+                allowOutsideClick: () => !Swal.isLoading(),
+                didOpen: () => {
+                    document.getElementById('reset_show').addEventListener('change', (event) => {
+                        const type = event.target.checked ? 'text' : 'password';
+                        document.getElementById('reset_pass').type = type;
+                        document.getElementById('reset_confirm').type = type;
+                    });
+                },
+                preConfirm: async () => {
+                    const password = document.getElementById('reset_pass').value;
+                    const confirmation = document.getElementById('reset_confirm').value;
+                    if (password.length < 12 || password.length > 256) {
+                        Swal.showValidationMessage('Password harus 12–256 karakter.'); return false;
+                    }
+                    if (password !== confirmation) {
+                        Swal.showValidationMessage('Konfirmasi password tidak sama.'); return false;
+                    }
+                    const form = new FormData();
+                    form.append('password', password); form.append('confirm_password', confirmation);
+                    try {
+                        const response = await fetch(`/api/admin/users/reset-password/${userId}`, {method:'POST', body:form});
+                        const data = await response.json();
+                        if (!response.ok) {Swal.showValidationMessage(data.message || 'Reset gagal.'); return false;}
+                        return data;
+                    } catch (error) {Swal.showValidationMessage('Tidak dapat menghubungi server.'); return false;}
+                }
+            });
+            if (result.isConfirmed) {
+                await Swal.fire({icon:'success', title:'Password Direset', text:result.value.message, background:'#111827', color:'#fff'});
+                if (result.value.logout) window.location.reload();
+                else loadAdminUsers();
             }
         }
 
