@@ -196,7 +196,7 @@ button:disabled { opacity: .55; cursor: not-allowed; }
             <div class="flex items-center justify-between px-2 py-1 shrink-0">
                 <div class="flex items-center space-x-3">
                     <!-- KODE BARU (MENGGUNAKAN FILE LOGO JPG) -->
-                    <img src="/static/logo_api.jpg" alt="Logo PT API" class="w-10 h-10 object-contain rounded-xl shadow-md shrink-0">
+                    <img src="/static/logo_api.jpg" alt="Logo PT API" class="w-10 h-10 object-contain rounded-none shadow-md shrink-0">
                     <div>
                         <h1 class="text-base font-extrabold text-white leading-tight">PT. Autoplastik Indonesia</h1>
                         <p class="text-[11px] text-blue-400 font-semibold">SISTEM PELACAKAN STOK SARANA</p>
@@ -1063,7 +1063,6 @@ let dashboardInterval = null; // Variabel untuk menyimpan timer auto-refresh
         }
 
         let masterSaranaList = [];
-
         // LOAD SEMUA MASTER SARANA & ISI DROPDOWN JENIS PART
         async function loadMasterToQRSelect() {
             try {
