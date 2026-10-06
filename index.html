@@ -2,7 +2,7 @@
 <html lang="id" class="dark">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=1024, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title>Tracking Stok Sarana - PT. Autoplastik Indonesia</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/html5-qrcode"></script>
@@ -71,7 +71,7 @@
     padding: 6px;
     background: #ffffff;
 }
-
+    
 /* Responsive layout — screen only, preserves A4 print layout. */
 [hidden] { display: none !important; }
 main, main .grid > *, main .flex > * { min-width: 0; }
@@ -145,6 +145,7 @@ button:disabled { opacity: .55; cursor: not-allowed; }
 @media (prefers-reduced-motion: reduce) {
     #sidebar { transition: none; }
 }
+
     </style>
 </head>
 <body class="min-h-screen flex flex-col relative overflow-x-hidden">
@@ -371,6 +372,7 @@ button:disabled { opacity: .55; cursor: not-allowed; }
                             <div class="flex items-center gap-2">
                                 <button onclick="openDeleteNgModal()" class="bg-red-600 hover:bg-red-500 text-white font-bold py-2 px-3.5 rounded-xl text-xs transition shadow-md flex items-center gap-1.5">
                                     🗑️ Hapus Stok (NG)
+                                </button>
                                 <button onclick="openAddStokModal()" class="bg-amber-600 hover:bg-amber-500 text-white font-bold py-2 px-3.5 rounded-xl text-xs transition shadow-md flex items-center gap-1.5">
                                     ➕ Tambah Stok Sarana
                                 </button>
@@ -406,13 +408,8 @@ button:disabled { opacity: .55; cursor: not-allowed; }
                 <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
                     <div class="lg:col-span-5 dark-card p-6 rounded-2xl border border-gray-800 shadow-xl space-y-5">
                         <div class="border-b border-gray-800 pb-3">
-                            <button onclick="toggleSidebar()" class="p-2 rounded-lg bg-gray-800 hover:bg-gray-700 text-white border border-gray-700 transition">
-                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M4 6h16M4 12h16M4 18h16"></path></svg>
-                            </button>
-                            <div>
-                                <h2 class="text-lg font-black text-amber-400">Buat Akun Pengguna Baru</h2>
-                                <p class="text-xs text-gray-400">Daftarkan akun login pegawai baru ke database</p>
-                            </div>    
+                            <h2 class="text-lg font-black text-amber-400">➕ Buat Akun Pengguna Baru</h2>
+                            <p class="text-xs text-gray-400">Daftarkan akun login pegawai baru ke database</p>
                         </div>
 
                         <form onsubmit="handleCreateUser(event)" class="space-y-4">
@@ -486,6 +483,7 @@ button:disabled { opacity: .55; cursor: not-allowed; }
                 </div>
             </div>
 
+            <!-- 5. MENU ADMIN: BATCH GENERATOR & PRINT QR CODE A4 -->
             <!-- 5. MENU ADMIN: BATCH GENERATOR, PRINT & DOWNLOAD QR CODE A4 -->
             <div id="view_qrcode" class="hidden space-y-6">
                 <div class="dark-card p-6 rounded-2xl border border-gray-800 shadow-xl space-y-6">
@@ -613,7 +611,7 @@ button:disabled { opacity: .55; cursor: not-allowed; }
             formData.append('username', document.getElementById('login_user').value);
             formData.append('password', document.getElementById('login_pass').value);
 
-            const res = await fetch('/api/login', { method: 'POST', headers: {'X-Requested-With':'XMLHttpRequest'}, body: formData });
+            const res = await fetch('/api/login', { method: 'POST', body: formData });
             const data = await res.json();
 
             if (res.ok) {
@@ -816,7 +814,7 @@ let dashboardInterval = null; // Variabel untuk menyimpan timer auto-refresh
                                 
                                 <td class="py-3 px-3 text-gray-300">${u.jabatan}</td>
                                 <td class="py-3 px-3 text-center">${roleBadge}</td>
-                                <td class="py-3 px-3 text-center"><div class="flex flex-wrap gap-2 justify-center"><button onclick="resetUserPassword(${u.id}, '${u.username}')" class="bg-blue-500/10 hover:bg-blue-500/20 text-blue-300 border border-blue-500/30 px-3 py-2 rounded-lg text-xs font-bold">🔑 Reset Password</button>${actionBtn}</div></td>
+                                <td class="py-3 px-3 text-center">${actionBtn}</td>
                             </tr>
                         `;
                     }).join('');
@@ -849,52 +847,6 @@ let dashboardInterval = null; // Variabel untuk menyimpan timer auto-refresh
                 await loadAdminUsers();
             } else {
                 Swal.fire({ icon: 'error', title: 'Gagal Buat Akun', text: data.message, customClass: { popup: 'dark-swal' } });
-            }
-        }
-
-        async function resetUserPassword(userId, username) {
-            const result = await Swal.fire({
-                title: 'Reset Password',
-                html: `<p class="text-sm mb-3">Akun: <strong>${username}</strong></p>
-                    <label for="reset_pass">Password baru (12–256 karakter)</label>
-                    <input id="reset_pass" type="password" class="swal2-input" minlength="12" maxlength="256" autocomplete="new-password">
-                    <label for="reset_confirm">Konfirmasi password</label>
-                    <input id="reset_confirm" type="password" class="swal2-input" minlength="12" maxlength="256" autocomplete="new-password">
-                    <label style="display:block;margin:12px"><input id="reset_show" type="checkbox"> Tampilkan password</label>
-                    <p class="text-xs">Sesi login lama akan berakhir. Berikan password baru kepada pemilik akun.</p>`,
-                showCancelButton: true, confirmButtonText: 'Simpan Password', cancelButtonText: 'Batal',
-                background: '#111827', color: '#fff', showLoaderOnConfirm: true,
-                allowOutsideClick: () => !Swal.isLoading(),
-                didOpen: () => {
-                    document.getElementById('reset_show').addEventListener('change', (event) => {
-                        const type = event.target.checked ? 'text' : 'password';
-                        document.getElementById('reset_pass').type = type;
-                        document.getElementById('reset_confirm').type = type;
-                    });
-                },
-                preConfirm: async () => {
-                    const password = document.getElementById('reset_pass').value;
-                    const confirmation = document.getElementById('reset_confirm').value;
-                    if (password.length < 12 || password.length > 256) {
-                        Swal.showValidationMessage('Password harus 12–256 karakter.'); return false;
-                    }
-                    if (password !== confirmation) {
-                        Swal.showValidationMessage('Konfirmasi password tidak sama.'); return false;
-                    }
-                    const form = new FormData();
-                    form.append('password', password); form.append('confirm_password', confirmation);
-                    try {
-                        const response = await fetch(`/api/admin/users/reset-password/${userId}`, {method:'POST', body:form});
-                        const data = await response.json();
-                        if (!response.ok) {Swal.showValidationMessage(data.message || 'Reset gagal.'); return false;}
-                        return data;
-                    } catch (error) {Swal.showValidationMessage('Tidak dapat menghubungi server.'); return false;}
-                }
-            });
-            if (result.isConfirmed) {
-                await Swal.fire({icon:'success', title:'Password Direset', text:result.value.message, background:'#111827', color:'#fff'});
-                if (result.value.logout) window.location.reload();
-                else loadAdminUsers();
             }
         }
 
