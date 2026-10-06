@@ -5,14 +5,18 @@ import json
 import os
 import re
 import secrets
+import time
+import logging
+import hmac
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, Form, Request, BackgroundTasks, HTTPException
 from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from starlette.middleware.sessions import SessionMiddleware
-from sqlalchemy import text
+from starlette.concurrency import run_in_threadpool
+from sqlalchemy import text, func
 from database import (BASE_DIR, IS_CLOUD, IS_POSTGRES, PRIMARY_ADMIN, SessionLocal,
-                      Sarana, LogScan, User, SyncJob, LoginAttempt, AccountAudit, init_db,
+                      Sarana, LogScan, User, SyncJob, LoginAttempt, AccountAudit, UnloadingGroup, init_db,
                       lock_writes, hash_password, verify_password, now)
 from sync_sheets import import_data, enqueue, flush_one, configured
 
@@ -30,28 +34,37 @@ async def lifespan(app):
 app = FastAPI(title='PT API Tracking Online', lifespan=lifespan, docs_url=None, redoc_url=None)
 app.mount('/static', StaticFiles(directory=str(BASE_DIR / 'static')), name='static')
 
+def load_session_user(user_id):
+    with SessionLocal() as session:
+        return session.get(User, user_id) if user_id else None
+
 @app.middleware('http')
 async def access_control(request: Request, call_next):
+    started = time.perf_counter()
     path = request.url.path
     if path.startswith('/api/'):
         if request.method not in ('GET','HEAD','OPTIONS') and request.headers.get('X-Requested-With') != 'XMLHttpRequest':
             return JSONResponse({'message':'Permintaan tidak valid.'}, status_code=403)
         if path not in ['/api/login','/api/health']:
-            with SessionLocal() as session:
-                user = session.get(User, request.session.get('user_id')) if request.session.get('user_id') else None
-                if not user or request.session.get('credential_tag') != hashlib.sha256(user.password.encode()).hexdigest():
-                    request.session.clear()
-                    return JSONResponse({'message':'Silakan login kembali.'}, status_code=401)
-                request.state.actor = user.username
-                request.state.role = user.role
-                admin_paths = ['/api/admin/users','/api/admin/sarana/','/api/sync']
-                if any(path.startswith(p) for p in admin_paths) and user.role != 'admin':
-                    return JSONResponse({'message':'Akses khusus admin.'}, status_code=403)
-                if path in ['/api/scan','/api/finish-vendor-unloading'] and user.role not in ['admin','member']:
-                    return JSONResponse({'message':'Akses khusus operator atau admin.'}, status_code=403)
+            user = await run_in_threadpool(load_session_user, request.session.get('user_id'))
+            if not user or request.session.get('credential_tag') != hashlib.sha256(user.password.encode()).hexdigest():
+                request.session.clear()
+                return JSONResponse({'message':'Silakan login kembali.'}, status_code=401)
+            request.state.actor = user.username
+            request.state.role = user.role
+            request.state.user = public_user(user)
+            admin_paths = ['/api/admin/users','/api/admin/sarana/','/api/sync']
+            if any(path.startswith(p) for p in admin_paths) and user.role != 'admin':
+                return JSONResponse({'message':'Akses khusus admin.'}, status_code=403)
+            if path in ['/api/scan','/api/finish-vendor-unloading','/api/unloading/preview','/api/sheets/drain'] and user.role not in ['admin','member']:
+                return JSONResponse({'message':'Akses khusus operator atau admin.'}, status_code=403)
     response = await call_next(request)
     if path.startswith('/api/'):
         response.headers['Cache-Control'] = 'no-store'
+    duration_ms = (time.perf_counter() - started) * 1000
+    response.headers['Server-Timing'] = f'app;dur={duration_ms:.1f}'
+    if path.startswith('/api/'):
+        logging.getLogger('uvicorn.error').info('api path=%s status=%s duration_ms=%.1f', path, response.status_code, duration_ms)
     response.headers['X-Content-Type-Options'] = 'nosniff'
     response.headers['Referrer-Policy'] = 'same-origin'
     response.headers['X-Frame-Options'] = 'DENY'
@@ -115,6 +128,10 @@ def login(request:Request, username:str=Form(...), password:str=Form(...)):
         request.session['credential_tag']=hashlib.sha256(user.password.encode()).hexdigest()
         return {'status':'success','user':public_user(user)}
 
+@app.get('/api/me')
+def me(request:Request):
+    return {'status':'success', 'user':request.state.user}
+
 @app.post('/api/logout')
 def logout(request:Request):
     request.session.clear()
@@ -123,20 +140,19 @@ def logout(request:Request):
 @app.get('/api/config')
 def config():
     url=os.getenv('GOOGLE_SHEET_URL','').strip()
-    return {'google_sheet_url':url if url.startswith('https://docs.google.com/spreadsheets/') else ''}
+    return {'google_sheet_url':url if url.startswith('https://docs.google.com/spreadsheets/') else '', 'sheets_enabled':configured()}
 
 @app.get('/api/admin/database')
-def database(request:Request, background_tasks:BackgroundTasks):
+def database(request:Request, background_tasks:BackgroundTasks, include_master:bool=True):
     with SessionLocal() as session:
         master=[{'ID_Sarana':s.ID_Sarana,'Nama_Sarana':escaped(s.Nama_Sarana),
                  'No_Sarana':escaped(s.No_Sarana),'Vendor':escaped(s.Vendor or '-'),
                  'Status_Saat_Ini':escaped(s.Status_Saat_Ini),'Tujuan_Akhir':''}
-                for s in session.query(Sarana).order_by(Sarana.ID_Sarana)]
+                for s in session.query(Sarana).order_by(Sarana.ID_Sarana)] if include_master else []
         logs=[{'id':l.id,'ID_Sarana':l.ID_Sarana,'Alur_Scan':escaped(l.Alur_Scan),
                'Vendor':escaped(l.Vendor or '-'),'Tujuan_Akhir':'',
                'Waktu_Scan':l.Waktu_Scan.strftime('%Y-%m-%d %H:%M:%S')}
               for l in session.query(LogScan).order_by(LogScan.id.desc()).limit(500)]
-    if request.state.role=='admin':background_tasks.add_task(flush_one)
     return {'master':master,'logs':logs}
 
 @app.get('/api/dashboard')
@@ -231,7 +247,6 @@ def add_batch(request:Request,background_tasks:BackgroundTasks,prefix_id:str=For
             log_event(session,unit,'TAMBAH STOK — Unit baru masuk PT API',request.state.actor)
         enqueue(session,{'action':'add_batch','items':items})
         session.commit()
-    background_tasks.add_task(flush_one)
     return {'status':'success','message':f'{qty} unit tersimpan di database online. Salinan Sheets mengikuti status sinkronisasi.'}
 
 @app.post('/api/scan')
@@ -249,10 +264,11 @@ def scan(request:Request,background_tasks:BackgroundTasks,id_sarana:str=Form(...
         require(not current.startswith('DELETED'),'Unit sudah dihapus karena NG.',409)
         require(current==previous or current=='LOST_IN_TRANSIT',f'Scan ditolak: status saat ini {current}.',409)
         if current=='LOST_IN_TRANSIT':label='RECOVERY ('+label+')'
+        if alur == '2':
+            begin_unloading_group(session, unit, request.state.actor)
         unit.Status_Saat_Ini=target;log_event(session,unit,label,request.state.actor)
         enqueue(session,{'action':'update_status','id_sarana':unit.ID_Sarana,'status':target})
         session.commit()
-    background_tasks.add_task(flush_one)
     return {'status':'success','message':f'Scan tersimpan: {target}.'}
 
 @app.post('/api/admin/sarana/delete-ng')
@@ -266,12 +282,81 @@ def delete_ng(request:Request,background_tasks:BackgroundTasks,id_sarana:str=For
         log_event(session,unit,'DIHAPUS (NG) — '+reason,request.state.actor)
         enqueue(session,{'action':'delete','id_sarana':unit.ID_Sarana,'status':unit.Status_Saat_Ini})
         session.commit()
-    background_tasks.add_task(flush_one)
     return {'status':'success','message':'Unit NG dihapus dari stok aktif dan dicatat di log.'}
 
+def latest_log_ids(session, ids):
+    if not ids:
+        return {}
+    return dict(session.query(LogScan.ID_Sarana, func.max(LogScan.id)).filter(
+        LogScan.ID_Sarana.in_(ids)).group_by(LogScan.ID_Sarana).all())
+
+def begin_unloading_group(session, unit, actor):
+    vendor, part = unit.Vendor or '-', unit.Nama_Sarana or ''
+    groups = session.query(UnloadingGroup).filter_by(state='open', vendor=vendor, part=part).all()
+    require(not any(g.actor != actor for g in groups),
+            'Unloading vendor dan part ini sedang ditangani operator lain. Selesaikan sesi operator itu dahulu.', 409)
+    if groups:
+        group = groups[0]
+        frozen = json.loads(group.snapshot)
+        # Unit recovery boleh diterima, tetapi tidak mengaktifkan kandidat dari pengiriman baru.
+        require(unit.ID_Sarana in frozen or unit.Status_Saat_Ini == 'LOST_IN_TRANSIT',
+                'Unit berasal dari pengiriman berikutnya. Selesaikan unloading part ini dahulu.', 409)
+        return
+    units = session.query(Sarana).filter_by(Vendor=unit.Vendor, Nama_Sarana=unit.Nama_Sarana,
+                                           Status_Saat_Ini='IN_TRANSIT_OUT').all()
+    ids = [u.ID_Sarana for u in units]
+    markers = latest_log_ids(session, ids)
+    frozen = {id_:markers.get(id_,0) for id_ in ids}
+    session.add(UnloadingGroup(actor=actor, vendor=vendor, part=part,
+                               snapshot=json.dumps(frozen), state='open'))
+
+def unloading_preview(session, actor):
+    groups = session.query(UnloadingGroup).filter_by(actor=actor,state='open').order_by(UnloadingGroup.id).all()
+    result = []
+    for group in groups:
+        frozen = json.loads(group.snapshot)
+        units = session.query(Sarana).filter(Sarana.ID_Sarana.in_(list(frozen))).all() if frozen else []
+        latest = latest_log_ids(session, list(frozen))
+        remaining = sorted(u.ID_Sarana for u in units
+                           if u.Status_Saat_Ini == 'IN_TRANSIT_OUT'
+                           and (u.Vendor or '-') == group.vendor and (u.Nama_Sarana or '') == group.part
+                           and latest.get(u.ID_Sarana,0) == frozen[u.ID_Sarana])
+        result.append({'id':group.id, 'vendor':group.vendor, 'part':group.part, 'missing_ids':remaining})
+    serialized = json.dumps(result, sort_keys=True, separators=(',',':'))
+    token = hmac.new(secret.encode(), serialized.encode(), hashlib.sha256).hexdigest()
+    return groups, result, token
+
+@app.get('/api/unloading/preview')
+def preview_unloading(request:Request):
+    with SessionLocal() as session:
+        _, groups, token = unloading_preview(session, request.state.actor)
+    return {'groups':groups, 'token':token, 'missing_count':sum(len(g['missing_ids']) for g in groups)}
+
 @app.post('/api/finish-vendor-unloading')
-def finish_unloading():
-    raise HTTPException(409,'Penutupan unloading massal belum diaktifkan untuk trial lintas lokasi. Diperlukan ID pengiriman agar muatan truk lain tidak ikut ditandai hilang. Scan penerimaan tetap tersedia.')
+def finish_unloading(request:Request, preview_token:str=Form(...)):
+    with SessionLocal() as session:
+        lock_writes(session)
+        groups, details, token = unloading_preview(session, request.state.actor)
+        require(hmac.compare_digest(preview_token,token), 'Data berubah sejak pratinjau. Buka Selesai Unloading lagi.',409)
+        if not groups:
+            return {'status':'info','message':'Belum ada part yang mulai diterima pada sesi Anda. Stok truk tidak diubah.'}
+        missing = sorted({id_ for g in details for id_ in g['missing_ids']})
+        for id_ in missing:
+            unit = session.get(Sarana,id_)
+            unit.Status_Saat_Ini = 'LOST_IN_TRANSIT'
+            log_event(session,unit,'HILANG / SELISIH UNLOADING',request.state.actor)
+            enqueue(session,{'action':'update_status','id_sarana':id_,'status':'LOST_IN_TRANSIT'})
+        for group in groups:
+            group.state = 'closed'; group.closed_at = now()
+        session.commit()
+    return {'status':'warning' if missing else 'success', 'missing_ids':missing,
+            'message':f'Unloading selesai. {len(missing)} unit ditandai hilang/selisih.' if missing else 'Unloading selesai. Part yang mulai diterima sudah lengkap.'}
+
+@app.post('/api/sheets/drain')
+def drain_sheets():
+    # Dipanggil terpisah dari request scan. Antrean tetap persisten di database.
+    flush_one()
+    return {'status':'success'}
 
 @app.post('/api/sync')
 def sync():
@@ -305,5 +390,4 @@ def resolve_sync(request:Request, background_tasks:BackgroundTasks, job_id:int=F
         job.state='done' if decision=='verified' else 'pending'
         job.error='Ditinjau oleh '+request.state.actor+'; keputusan: '+decision
         session.commit()
-    background_tasks.add_task(flush_one)
     return {'status':'success','message':'Keputusan dicatat. Antrean berikutnya dapat diproses.'}

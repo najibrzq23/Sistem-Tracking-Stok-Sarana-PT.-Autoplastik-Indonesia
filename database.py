@@ -9,7 +9,7 @@ from zoneinfo import ZoneInfo
 from dotenv import load_dotenv
 from sqlalchemy import create_engine, Column, Integer, String, DateTime, Text, text
 from sqlalchemy.orm import declarative_base, sessionmaker, Session
-from sqlalchemy.pool import NullPool
+from sqlalchemy.pool import NullPool, QueuePool
 
 BASE_DIR = Path(__file__).resolve().parent
 LOCAL_TRIAL = os.getenv('LOCAL_TRIAL') == '1'
@@ -36,8 +36,10 @@ elif DATABASE_URL.startswith('postgresql://'):
 IS_POSTGRES = DATABASE_URL.startswith('postgresql')
 if IS_CLOUD and not IS_POSTGRES:
     raise RuntimeError('Vercel memerlukan PostgreSQL persisten, bukan SQLite lokal.')
-engine = create_engine(DATABASE_URL, poolclass=NullPool, pool_pre_ping=True,
-                       connect_args={'connect_timeout': 15, 'prepare_threshold': None} if IS_POSTGRES else {'check_same_thread': False, 'timeout': 30})
+pool_options = dict(poolclass=QueuePool, pool_size=2, max_overflow=3,
+                    pool_timeout=15, pool_recycle=300, pool_use_lifo=True) if IS_POSTGRES else dict(poolclass=NullPool)
+engine = create_engine(DATABASE_URL, pool_pre_ping=True, **pool_options,
+                       connect_args={'connect_timeout':15, 'prepare_threshold':None} if IS_POSTGRES else {'check_same_thread':False, 'timeout':30})
 SessionLocal = sessionmaker(bind=engine, autoflush=False, expire_on_commit=False)
 Base = declarative_base()
 PRIMARY_ADMIN = os.getenv('INITIAL_ADMIN_USERNAME', '').strip()
@@ -91,6 +93,17 @@ class User(Base):
     nama_lengkap = Column(String)
     npk = Column(String)
     jabatan = Column(String)
+
+class UnloadingGroup(Base):
+    __tablename__ = 'unloading_groups'
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    actor = Column(String, nullable=False, index=True)
+    vendor = Column(String, nullable=False)
+    part = Column(String, nullable=False)
+    snapshot = Column(Text, nullable=False)
+    state = Column(String, default='open', nullable=False, index=True)
+    created_at = Column(DateTime, default=now)
+    closed_at = Column(DateTime, nullable=True)
 
 class AccountAudit(Base):
     __tablename__ = 'account_audit'

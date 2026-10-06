@@ -2,7 +2,7 @@
 <html lang="id" class="dark">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <meta name="viewport" content="width=1024, initial-scale=1.0">
     <title>Tracking Stok Sarana - PT. Autoplastik Indonesia</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/html5-qrcode"></script>
@@ -71,81 +71,6 @@
     padding: 6px;
     background: #ffffff;
 }
-    
-/* Responsive layout — screen only, preserves A4 print layout. */
-[hidden] { display: none !important; }
-main, main .grid > *, main .flex > * { min-width: 0; }
-button, a, input, select, textarea { touch-action: manipulation; }
-button:focus-visible, a:focus-visible { outline: 2px solid #60a5fa; outline-offset: 3px; }
-button:disabled { opacity: .55; cursor: not-allowed; }
-#sidebar { width: min(288px, 88vw); }
-#sidebar button { min-height: 44px; }
-#reader_container video { max-width: 100%; }
-#sync_text { overflow-wrap: anywhere; }
-.mobile-table-scroll { overscroll-behavior: contain; }
-@media screen and (min-width: 1024px) {
-    #sidebar { transform: translateX(0) !important; width: 272px; }
-    #sidebar_overlay { display: none !important; }
-    main { margin-left: 272px; width: calc(100% - 272px) !important; }
-    button[onclick="toggleSidebar()"] { display: none; }
-}
-@media screen and (max-width: 767px) {
-    main { padding: 12px !important; padding-bottom: max(24px, env(safe-area-inset-bottom)) !important; }
-    main .dark-card { padding: 16px; }
-    main .dark-card:has(> .mobile-table-scroll) { padding: 0; }
-    main h2 { font-size: 19px !important; line-height: 1.4; overflow-wrap: anywhere; }
-    main h3 { line-height: 1.5; }
-    main p, main label, #sidebar .sidebar-btn { font-size: 14px !important; line-height: 1.5; }
-    main button, main a, #sidebar button { min-height: 44px; font-size: 14px !important; }
-    main input, main select, main textarea,
-    [id$="_modal"] input, [id$="_modal"] select, [id$="_modal"] textarea {
-        font-size: 16px !important; min-height: 48px; max-width: 100%;
-    }
-    main .flex { flex-wrap: wrap; }
-    main button[onclick="toggleSidebar()"] { flex: 0 0 44px; }
-    #view_database .space-y-3 > .flex > .flex {
-        width: 100%; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr));
-    }
-    #view_database .space-y-3 > .flex > .flex > * {
-        width: 100%; justify-content: center; text-align: center; padding: 10px 8px;
-    }
-    #view_qrcode select { width: 100%; }
-    [id$="_modal"] { overflow-y: auto; padding: 12px !important; align-items: flex-start; }
-    [id$="_modal"] > .dark-card {
-        margin: auto; max-height: calc(100dvh - 24px); overflow-y: auto; padding: 20px !important;
-    }
-    [id$="_modal"] button { min-height: 44px; }
-    .swal2-popup { width: calc(100vw - 24px) !important; padding: 16px !important; }
-    .mobile-table-scroll { max-height: 65dvh !important; overflow: auto; padding: 12px; }
-    .responsive-table, .responsive-table tbody { display: block; width: 100%; }
-    .responsive-table thead { display: none; }
-    .responsive-table tbody { display: grid; gap: 12px; border: none; }
-    .responsive-table tbody tr {
-        display: block; background: #111b2c; border: 1px solid #334155 !important;
-        border-radius: 14px; padding: 8px 12px; min-width: 0;
-    }
-    .responsive-table tbody td {
-        display: grid !important; grid-template-columns: minmax(90px, .8fr) minmax(0, 1.2fr);
-        align-items: start; gap: 12px; padding: 10px 0 !important; font-size: 14px !important;
-        line-height: 1.5; text-align: left !important; overflow-wrap: anywhere;
-    }
-    .responsive-table tbody td + td { border-top: 1px solid #253247; }
-    .responsive-table tbody td::before {
-        content: attr(data-label); color: #94a3b8; font: 500 12px/1.6 ui-sans-serif, system-ui;
-    }
-    .responsive-table tbody td > * { min-width: 0; max-width: 100%; white-space: normal; }
-    .responsive-table tbody td[colspan] { display: block !important; text-align: center !important; }
-    .responsive-table tbody td[colspan]::before { display: none; }
-    #table_body td:first-child > span { display: none; }
-    #reader_container { min-height: 240px; }
-    #reader_container button { min-height: 44px; }
-    #view_qrcode #a4_preview_wrapper { min-width: 680px; }
-    #view_qrcode .overflow-x-auto { justify-content: flex-start; padding: 12px; }
-}
-@media (prefers-reduced-motion: reduce) {
-    #sidebar { transition: none; }
-}
-
     </style>
 </head>
 <body class="min-h-screen flex flex-col relative overflow-x-hidden">
@@ -158,6 +83,7 @@ button:disabled { opacity: .55; cursor: not-allowed; }
                 <h2 class="text-2xl font-black text-white">Login System</h2>
                 <p class="text-xs text-gray-400">Silakan login sesuai username akun Anda</p>
             </div>
+            <p id="session_hint" class="text-xs text-gray-400">Memeriksa sesi login…</p>
             <form onsubmit="handleLogin(event)" class="space-y-4">
                 <div>
                     <label class="block text-xs font-bold uppercase text-gray-400 mb-2">Username</label>
@@ -344,7 +270,7 @@ button:disabled { opacity: .55; cursor: not-allowed; }
                             </div>
                             <div class="space-y-3 pt-4">
                                 <button id="station_submit_btn" onclick="submitCurrentStation()" class="w-full text-white font-bold py-3.5 px-6 rounded-xl transition shadow-lg text-sm">Submit Scan Sekarang</button>
-                                <button id="btn_finish_unloading" disabled title="Perlu identitas pengiriman agar truk lain tidak ikut ditandai hilang" class="w-full bg-amber-600 hover:bg-amber-500 text-white font-bold py-3 px-6 rounded-xl transition text-xs hidden">Penutupan massal belum tersedia; gunakan scan penerimaan</button>
+                                <button id="btn_finish_unloading" onclick="finishVendorUnloading()" class="w-full bg-amber-600 hover:bg-amber-500 text-white font-bold py-3 px-6 rounded-xl transition text-xs hidden">Selesai Unloading Vendor</button>
                             </div>
                         </div>
                     </div>
@@ -372,7 +298,6 @@ button:disabled { opacity: .55; cursor: not-allowed; }
                             <div class="flex items-center gap-2">
                                 <button onclick="openDeleteNgModal()" class="bg-red-600 hover:bg-red-500 text-white font-bold py-2 px-3.5 rounded-xl text-xs transition shadow-md flex items-center gap-1.5">
                                     🗑️ Hapus Stok (NG)
-                                </button>
                                 <button onclick="openAddStokModal()" class="bg-amber-600 hover:bg-amber-500 text-white font-bold py-2 px-3.5 rounded-xl text-xs transition shadow-md flex items-center gap-1.5">
                                     ➕ Tambah Stok Sarana
                                 </button>
@@ -408,13 +333,8 @@ button:disabled { opacity: .55; cursor: not-allowed; }
                 <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
                     <div class="lg:col-span-5 dark-card p-6 rounded-2xl border border-gray-800 shadow-xl space-y-5">
                         <div class="border-b border-gray-800 pb-3">
-                            <button onclick="toggleSidebar()" class="p-2 rounded-lg bg-gray-800 hover:bg-gray-700 text-white border border-gray-700 transition">
-                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M4 6h16M4 12h16M4 18h16"></path></svg>
-                            </button>
-                            <div>
-                                <h2 class="text-lg font-black text-amber-400">Buat Akun Pengguna Baru</h2>
-                                <p class="text-xs text-gray-400">Daftarkan akun login pegawai baru ke database</p>
-                            </div>
+                            <h2 class="text-lg font-black text-amber-400">➕ Buat Akun Pengguna Baru</h2>
+                            <p class="text-xs text-gray-400">Daftarkan akun login pegawai baru ke database</p>
                         </div>
 
                         <form onsubmit="handleCreateUser(event)" class="space-y-4">
@@ -457,8 +377,13 @@ button:disabled { opacity: .55; cursor: not-allowed; }
                     <div class="lg:col-span-7 dark-card p-6 rounded-2xl border border-gray-800 shadow-xl space-y-4 flex flex-col justify-between">
                         <div class="flex items-center justify-between border-b border-gray-800 pb-3">
                             <div class="flex items-center gap-3">
-                                <h2 class="text-lg font-black text-white">👤 Daftar Akun System</h2>
-                                <p class="text-xs text-gray-400">Pengguna terdaftar dalam database lokal</p>
+                                <button onclick="toggleSidebar()" class="p-2 rounded-lg bg-gray-800 hover:bg-gray-700 text-white border border-gray-700 transition">
+                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M4 6h16M4 12h16M4 18h16"></path></svg>
+                                </button>
+                                <div>
+                                    <h2 class="text-lg font-black text-white">👤 Daftar Akun System</h2>
+                                    <p class="text-xs text-gray-400">Pengguna terdaftar dalam database lokal</p>
+                                </div>
                             </div>
                             <span id="total_user_badge" class="text-xs bg-gray-800 text-amber-400 font-bold px-3 py-1 rounded-full border border-gray-700">0 User</span>
                         </div>
@@ -546,6 +471,7 @@ button:disabled { opacity: .55; cursor: not-allowed; }
             if (response.status === 401 && input !== '/api/login') {
                 if (dashboardInterval) clearInterval(dashboardInterval);
                 currentUser = null;
+                if (syncDrainTimer) {clearInterval(syncDrainTimer); syncDrainTimer = null;}
                 if (currentScanner) {try {await currentScanner.clear();} catch(e) {} currentScanner = null;}
                 document.getElementById('login_modal').classList.remove('hidden');
             }
@@ -611,23 +537,53 @@ button:disabled { opacity: .55; cursor: not-allowed; }
             formData.append('username', document.getElementById('login_user').value);
             formData.append('password', document.getElementById('login_pass').value);
 
-            const res = await fetch('/api/login', { method: 'POST', body: formData });
+            const res = await fetch('/api/login', { method: 'POST', headers: {'X-Requested-With':'XMLHttpRequest'}, body: formData });
             const data = await res.json();
 
             if (res.ok) {
-                currentUser = data.user;
                 document.getElementById('login_pass').value = '';
-                const cfg = await (await fetch('/api/config')).json();
-                const link = document.getElementById('sheet_link');
-                link.hidden = !cfg.google_sheet_url;
-                if (cfg.google_sheet_url) link.href = cfg.google_sheet_url;
-                document.getElementById('login_modal').classList.add('hidden');
-                setupPermissions();
-                switchMenu('overview');
+                await enterApp(data.user);
             } else {
                 Swal.fire({ icon: 'error', title: 'Login Gagal', text: data.message, customClass: { popup: 'dark-swal' } });
             }
         }
+
+        let syncDrainTimer = null;
+        let drainBusy = false;
+        async function drainSheets() {
+            if (drainBusy || !currentUser || currentUser.role === 'guest') return;
+            drainBusy = true;
+            try { await fetch('/api/sheets/drain', {method:'POST'}); }
+            catch(error) { console.warn('Salinan Sheets akan dicoba pada jadwal berikutnya.'); }
+            finally { drainBusy = false; }
+        }
+        async function enterApp(user) {
+            currentUser = user;
+            document.getElementById('login_modal').classList.add('hidden');
+            setupPermissions(); switchMenu('overview');
+            if (syncDrainTimer) clearInterval(syncDrainTimer);
+            try {
+                const cfg = await (await fetch('/api/config')).json();
+                const link = document.getElementById('sheet_link');
+                link.hidden = !cfg.google_sheet_url;
+                if (cfg.google_sheet_url) link.href = cfg.google_sheet_url;
+                if (cfg.sheets_enabled && user.role !== 'guest') {
+                    syncDrainTimer = setInterval(drainSheets, 3000);
+                    void drainSheets();
+                }
+            } catch(error) {console.warn('Konfigurasi tautan Sheet belum terbaca.');}
+        }
+        async function restoreSession() {
+            try {
+                const response = await fetch('/api/me');
+                if (response.ok) {await enterApp((await response.json()).user); return;}
+                document.getElementById('session_hint').textContent = 'Silakan login.';
+            } catch(error) {
+                document.getElementById('session_hint').textContent = 'Server belum dapat dihubungi. Muat ulang untuk mencoba lagi.';
+            }
+            document.getElementById('login_modal').classList.remove('hidden');
+        }
+        window.addEventListener('DOMContentLoaded', restoreSession);
 
         function setupPermissions() {
             document.getElementById('user_display_name').innerText = currentUser.nama_lengkap;
@@ -703,12 +659,13 @@ let dashboardInterval = null; // Variabel untuk menyimpan timer auto-refresh
             }
         }
         async function refreshAllData() {
-            await loadDashboard();
-            await loadAuditLogs();
-            if (currentUser && currentUser.role === 'admin') {
-                await loadAdminMaster();
-                await loadSyncStatus();
-            }
+            const active = id => !document.getElementById(id).classList.contains('hidden');
+            const tasks = [];
+            if (active('view_overview')) tasks.push(loadDashboard(), loadAuditLogs());
+            if (active('view_database')) tasks.push(loadAdminMaster());
+            if (active('view_users')) tasks.push(loadAdminUsers());
+            if (currentUser && currentUser.role === 'admin' && active('view_database')) tasks.push(loadSyncStatus());
+            await Promise.allSettled(tasks);
         }
 
         async function syncAndReloadData() {
@@ -736,7 +693,7 @@ let dashboardInterval = null; // Variabel untuk menyimpan timer auto-refresh
 
         async function loadAuditLogs() {
             try {
-            const res = await fetch('/api/admin/database');
+            const res = await fetch('/api/admin/database?include_master=false');
             const data = await res.json();
             const lBody = document.getElementById('overview_logs_body');
             const logBadge = document.getElementById('total_log_badge');
@@ -1077,22 +1034,24 @@ let dashboardInterval = null; // Variabel untuk menyimpan timer auto-refresh
             });
         }
 
+        let scanRequestBusy = false;
         async function submitCurrentStation() {
             const id_sarana = document.getElementById('station_id_input').value.trim();
-            if (!id_sarana) return;
+            if (!id_sarana || scanRequestBusy) return;
+            scanRequestBusy = true;
             const formData = new FormData();
-            formData.append('id_sarana', id_sarana);
-            formData.append('alur', currentAlurVal);
-
-            const res = await fetch('/api/scan', { method: 'POST', body: formData });
-            const result = await res.json();
-            
-            Swal.fire({ icon: res.ok ? 'success' : 'error', title: res.ok ? 'Scan Berhasil' : 'Gagal', text: result.message, customClass: { popup: 'dark-swal' } });
-            
-            if (res.ok) {
-                document.getElementById('station_id_input').value = '';
-                await refreshAllData();
-            }
+            formData.append('id_sarana', id_sarana); formData.append('alur', currentAlurVal);
+            try {
+                const res = await fetch('/api/scan', {method:'POST', body:formData});
+                const result = await res.json();
+                if (res.ok) {
+                    document.getElementById('station_id_input').value = '';
+                    Swal.fire({icon:'success',title:'Scan Berhasil',text:result.message,timer:1200,showConfirmButton:false,customClass:{popup:'dark-swal'}});
+                    void refreshAllData();
+                } else await Swal.fire({icon:'error',title:'Gagal',text:result.message,customClass:{popup:'dark-swal'}});
+            } catch(error) {
+                await Swal.fire({icon:'error',title:'Koneksi terganggu',text:'Hasil scan belum terkonfirmasi. Periksa status unit sebelum scan ulang.',customClass:{popup:'dark-swal'}});
+            } finally {scanRequestBusy = false;}
         }
 
         async function loadDashboard() {
@@ -1157,41 +1116,30 @@ let dashboardInterval = null; // Variabel untuk menyimpan timer auto-refresh
             }
         }
 
+        function safeText(value) {
+            return String(value ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+        }
+        let finishBusy = false;
         async function finishVendorUnloading() {
-            const confirm = await Swal.fire({
-                title: 'Konfirmasi Unloading Vendor',
-                text: 'Selesaikan pembongkaran muatan di Vendor? Unit yang belum ter-scan akan otomatis dikoreksi.',
-                icon: 'question',
-                showCancelButton: true,
-                confirmButtonColor: '#d97706',
-                cancelButtonColor: '#374151',
-                confirmButtonText: 'Ya, Selesaikan Unloading',
-                cancelButtonText: 'Batal',
-                customClass: { popup: 'dark-swal' }
-            });
-
-            if (confirm.isConfirmed) {
-                try {
-                    const res = await fetch('/api/finish-vendor-unloading', { method: 'POST' });
-                    const result = await res.json();
-                    
-                    let iconType = 'success';
-                    if (result.status === 'warning') iconType = 'warning';
-                    else if (result.status === 'info') iconType = 'success';
-
-                    Swal.fire({
-                        icon: iconType,
-                        title: 'Unloading Selesai',
-                        text: result.message,
-                        customClass: { popup: 'dark-swal' },
-                        confirmButtonColor: '#2563eb'
-                    });
-
-                    await refreshAllData();
-                } catch (err) {
-                    Swal.fire({ icon: 'error', title: 'Koneksi Terputus', text: 'Gagal memproses penutupan unloading!', customClass: { popup: 'dark-swal' } });
+            if (finishBusy) return;
+            finishBusy = true;
+            try {
+                const response = await fetch('/api/unloading/preview');
+                const preview = await response.json();
+                if (!response.ok) throw new Error(preview.message || 'Pratinjau gagal.');
+                if (!preview.groups.length) {
+                    await Swal.fire({icon:'info',text:'Belum ada part yang mulai diterima pada sesi Anda. Stok truk tidak diubah.',customClass:{popup:'dark-swal'}}); return;
                 }
-            }
+                const rows = preview.groups.map(g => `<p><strong>${safeText(g.vendor)} / ${safeText(g.part)}</strong>: ${g.missing_ids.length} selisih</p><p style="font-size:12px;overflow-wrap:anywhere">${g.missing_ids.map(safeText).join(', ') || 'Lengkap'}</p>`).join('<hr>');
+                const confirm = await Swal.fire({title:'Selesai Unloading Vendor?',html:`<div style="max-height:300px;overflow:auto;text-align:left">${rows}</div><p>${preview.missing_count} unit akan ditandai hilang/selisih. Part yang belum mulai diterima tetap di truk.</p>`,icon:'question',showCancelButton:true,confirmButtonText:'Simpan Hasil Unloading',cancelButtonText:'Batal',customClass:{popup:'dark-swal'}});
+                if (!confirm.isConfirmed) return;
+                const form = new FormData(); form.append('preview_token',preview.token);
+                const res = await fetch('/api/finish-vendor-unloading',{method:'POST',body:form});
+                const result = await res.json();
+                await Swal.fire({icon:res.ok ? (result.status === 'warning' ? 'warning':'success'):'error',title:res.ok?'Unloading Selesai':'Belum Disimpan',text:result.message,customClass:{popup:'dark-swal'}});
+                if (res.ok) void refreshAllData();
+            } catch(error) {await Swal.fire({icon:'error',text:error.message || 'Koneksi terganggu. Periksa log sebelum mengulang.',customClass:{popup:'dark-swal'}});}
+            finally {finishBusy = false;}
         }
 
         async function syncData() {
@@ -1400,37 +1348,5 @@ let dashboardInterval = null; // Variabel untuk menyimpan timer auto-refresh
         </form>
     </div>
 </div>
-
-    <script>
-    // Keep a single table/data source; mobile labels follow the desktop headings.
-    document.querySelectorAll('main table').forEach(function(table) {
-        table.classList.add('responsive-table');
-        const scroller = table.parentElement;
-        scroller.classList.add('mobile-table-scroll');
-        scroller.setAttribute('tabindex', '0');
-        scroller.setAttribute('aria-label', 'Daftar data, gulir untuk melihat baris berikutnya');
-        const labels = Array.from(table.querySelectorAll('thead th')).map(th => th.textContent.trim());
-        const body = table.querySelector('tbody');
-        function updateLabels() {
-            body.querySelectorAll('tr').forEach(function(row) {
-                Array.from(row.cells).forEach(function(cell, index) {
-                    if (!cell.hasAttribute('colspan')) cell.dataset.label = labels[index] || '';
-                });
-            });
-        }
-        updateLabels();
-        new MutationObserver(updateLabels).observe(body, {childList: true, subtree: true});
-    });
-    document.querySelectorAll('button[onclick="toggleSidebar()"]').forEach(function(button) {
-        button.setAttribute('aria-label', button.closest('#sidebar') ? 'Tutup menu' : 'Buka menu');
-        button.setAttribute('aria-controls', 'sidebar');
-    });
-    document.getElementById('login_user').autocomplete = 'username';
-    document.getElementById('login_pass').autocomplete = 'current-password';
-    document.addEventListener('keydown', function(event) {
-        if (event.key === 'Escape' && !document.getElementById('sidebar').classList.contains('-translate-x-full')) toggleSidebar();
-    });
-    </script>
-
 </body>
 </html>
