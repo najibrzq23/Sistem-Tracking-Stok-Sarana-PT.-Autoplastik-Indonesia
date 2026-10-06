@@ -486,7 +486,7 @@
             formData.append('username', document.getElementById('login_user').value);
             formData.append('password', document.getElementById('login_pass').value);
 
-            const res = await fetch('/api/login', { method: 'POST', body: formData });
+            const res = await fetch('/api/login', {method: 'POST',headers: {'X-Requested-With': 'XMLHttpRequest'},body: formData});
             const data = await res.json();
 
             if (res.ok) {
