@@ -152,6 +152,13 @@ button:disabled { opacity: .55; cursor: not-allowed; }
     #station_submit_btn { min-height:48px; }
     #station_id_input { width:100%; }
 }
+@media screen and (min-width:1024px) {
+    body.overview-mode #sidebar { transform:translateX(-100%) !important; }
+    body.overview-mode.sidebar-open #sidebar { transform:translateX(0) !important; }
+    body.overview-mode main { margin-left:0; width:100% !important; }
+    body.overview-mode button[onclick="toggleSidebar()"] { display:inline-flex; }
+    body.overview-mode #sidebar_overlay:not(.hidden) { display:block !important; }
+}
     </style>
 </head>
 <body class="min-h-screen flex flex-col relative overflow-x-hidden">
@@ -256,7 +263,7 @@ button:disabled { opacity: .55; cursor: not-allowed; }
                         </div>
                     </div>
                     <div class="flex items-center gap-3 self-end md:self-auto">
-                        <button onclick="refreshAllData()" class="bg-gray-800 hover:bg-gray-700 text-gray-200 border border-gray-700 py-2.5 px-4 rounded-xl text-xs font-semibold shadow-md flex items-center gap-2">
+                        <button id="overview_refresh_btn" onclick="refreshOverview()" class="bg-gray-800 hover:bg-gray-700 text-gray-200 border border-gray-700 py-2.5 px-4 rounded-xl text-xs font-semibold shadow-md flex items-center gap-2">
                             🔄 Refresh
                         </button>
                     </div>
@@ -413,8 +420,40 @@ button:disabled { opacity: .55; cursor: not-allowed; }
 
             <!-- 4. MENU ADMIN: DAFTAR AKUN SYSTEM -->
             <div id="view_users" class="hidden space-y-6">
-                <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
-                    <div class="lg:col-span-5 dark-card p-6 rounded-2xl border border-gray-800 shadow-xl space-y-5">
+                <div class="space-y-6">
+                    <div class="dark-card p-6 rounded-2xl border border-gray-800 shadow-xl space-y-4 flex flex-col justify-between">
+                        <div class="flex items-center justify-between border-b border-gray-800 pb-3">
+                            <div class="flex items-center gap-3">
+                                <button onclick="toggleSidebar()" class="p-2 rounded-lg bg-gray-800 hover:bg-gray-700 text-white border border-gray-700 transition">
+                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M4 6h16M4 12h16M4 18h16"></path></svg>
+                                </button>
+                                <div>
+                                    <h2 class="text-lg font-black text-white">👤 Daftar Akun System</h2>
+                                    <p class="text-xs text-gray-400">Daftar akun pekerja dan hak akses sistem</p>
+                                </div>
+                            </div>
+                            <span id="total_user_badge" class="text-xs bg-gray-800 text-amber-400 font-bold px-3 py-1 rounded-full border border-gray-700">0 User</span>
+                        </div>
+
+                        <div class="overflow-x-auto overflow-y-auto max-h-[420px] rounded-xl border border-gray-800 bg-gray-900/30 flex-1">
+                            <table class="w-full text-left border-collapse text-xs">
+                                <thead class="sticky top-0 bg-gray-900 z-10">
+                                    <tr class="text-gray-400 uppercase tracking-wider border-b border-gray-800">
+                                        <th class="py-3.5 px-3 font-bold">NPK</th>
+                                        <th class="py-3.5 px-3 font-bold">Nama Lengkap</th>
+                                        <th class="py-3.5 px-3 font-bold">Username</th>
+                                        
+                                        <th class="py-3.5 px-3 font-bold">Jabatan</th>
+                                        <th class="py-3.5 px-3 text-center font-bold">Role</th>
+                                        <th class="py-3.5 px-3 text-center font-bold">Aksi</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="db_users_body" class="divide-y divide-gray-800/80 font-medium"></tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <div class="dark-card p-6 rounded-2xl border border-gray-800 shadow-xl space-y-5">
                         <div class="border-b border-gray-800 pb-3">
                             <h2 class="text-lg font-black text-amber-400">➕ Buat Akun Pengguna Baru</h2>
                             <p class="text-xs text-gray-400">Daftarkan akun login pegawai baru ke database</p>
@@ -455,38 +494,6 @@ button:disabled { opacity: .55; cursor: not-allowed; }
                                 💾 Simpan & Registrasi Akun
                             </button>
                         </form>
-                    </div>
-
-                    <div class="lg:col-span-7 dark-card p-6 rounded-2xl border border-gray-800 shadow-xl space-y-4 flex flex-col justify-between">
-                        <div class="flex items-center justify-between border-b border-gray-800 pb-3">
-                            <div class="flex items-center gap-3">
-                                <button onclick="toggleSidebar()" class="p-2 rounded-lg bg-gray-800 hover:bg-gray-700 text-white border border-gray-700 transition">
-                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M4 6h16M4 12h16M4 18h16"></path></svg>
-                                </button>
-                                <div>
-                                    <h2 class="text-lg font-black text-white">👤 Daftar Akun System</h2>
-                                    <p class="text-xs text-gray-400">Pengguna terdaftar dalam database lokal</p>
-                                </div>
-                            </div>
-                            <span id="total_user_badge" class="text-xs bg-gray-800 text-amber-400 font-bold px-3 py-1 rounded-full border border-gray-700">0 User</span>
-                        </div>
-
-                        <div class="overflow-x-auto overflow-y-auto max-h-[420px] rounded-xl border border-gray-800 bg-gray-900/30 flex-1">
-                            <table class="w-full text-left border-collapse text-xs">
-                                <thead class="sticky top-0 bg-gray-900 z-10">
-                                    <tr class="text-gray-400 uppercase tracking-wider border-b border-gray-800">
-                                        <th class="py-3.5 px-3 font-bold">NPK</th>
-                                        <th class="py-3.5 px-3 font-bold">Nama Lengkap</th>
-                                        <th class="py-3.5 px-3 font-bold">Username</th>
-                                        
-                                        <th class="py-3.5 px-3 font-bold">Jabatan</th>
-                                        <th class="py-3.5 px-3 text-center font-bold">Role</th>
-                                        <th class="py-3.5 px-3 text-center font-bold">Aksi</th>
-                                    </tr>
-                                </thead>
-                                <tbody id="db_users_body" class="divide-y divide-gray-800/80 font-medium"></tbody>
-                            </table>
-                        </div>
                     </div>
                 </div>
             </div>
@@ -608,9 +615,11 @@ button:disabled { opacity: .55; cursor: not-allowed; }
             if (sidebar.classList.contains('-translate-x-full')) {
                 sidebar.classList.remove('-translate-x-full');
                 overlay.classList.remove('hidden');
+                document.body.classList.add('sidebar-open');
             } else {
                 sidebar.classList.add('-translate-x-full');
                 overlay.classList.add('hidden');
+                document.body.classList.remove('sidebar-open');
             }
         }
 
@@ -694,6 +703,7 @@ let dashboardInterval = null; // Variabel untuk menyimpan timer auto-refresh
         let stationGeneration = 0;
         async function switchMenu(menuKey) {
             const generation = ++stationGeneration;
+            document.body.classList.toggle('overview-mode', menuKey === 'overview');
             const sidebar = document.getElementById('sidebar');
             if (!sidebar.classList.contains('-translate-x-full')) {
                 toggleSidebar();
@@ -746,6 +756,23 @@ let dashboardInterval = null; // Variabel untuk menyimpan timer auto-refresh
                 initStationScanner();
             }
         }
+        let overviewRefreshBusy = false;
+        async function refreshOverview() {
+            if (overviewRefreshBusy) return;
+            overviewRefreshBusy = true;
+            const button = document.getElementById('overview_refresh_btn');
+            const previous = button.innerHTML;
+            button.disabled = true; button.textContent = 'Memperbarui…';
+            try {
+                const results = await Promise.allSettled([loadDashboard(),loadAuditLogs()]);
+                const ok = results.every(r => r.status === 'fulfilled');
+                await Swal.fire({toast:true,position:'top',icon:ok?'success':'error',
+                    title:ok?'Overview berhasil diperbarui':'Sebagian data gagal diperbarui',
+                    text:ok?'Data stok dan log terbaru sudah dimuat.':'Periksa koneksi lalu coba lagi.',
+                    timer:1500,showConfirmButton:false,customClass:{popup:'dark-swal'}});
+            } finally {button.innerHTML=previous;button.disabled=false;overviewRefreshBusy=false;}
+        }
+
         async function refreshAllData() {
             const active = id => !document.getElementById(id).classList.contains('hidden');
             const tasks = [];
@@ -805,7 +832,7 @@ let dashboardInterval = null; // Variabel untuk menyimpan timer auto-refresh
                 </tr>
             `).join('');}}
             catch(e) {
-                console.error("Error load audit logs:", e);}}
+                console.error("Error load audit logs:", e); throw e;}}
 
         async function loadAdminMaster() {
             try {
@@ -1172,6 +1199,7 @@ let dashboardInterval = null; // Variabel untuk menyimpan timer auto-refresh
         async function loadDashboard() {
             try {
                 const res = await fetch('/api/dashboard');
+                if (!res.ok) throw new Error("Tidak dapat memuat data terbaru.");
                 const data = await res.json();
                 
                 const tbody = document.getElementById('table_body');
@@ -1227,7 +1255,7 @@ let dashboardInterval = null; // Variabel untuk menyimpan timer auto-refresh
                     `;
                 }
             } catch(e) {
-                console.error("Error load dashboard:", e);
+                console.error("Error load dashboard:", e); throw e;
             }
         }
 
