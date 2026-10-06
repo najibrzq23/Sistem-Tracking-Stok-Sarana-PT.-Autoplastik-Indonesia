@@ -12,7 +12,17 @@ from sqlalchemy.orm import declarative_base, sessionmaker, Session
 from sqlalchemy.pool import NullPool
 
 BASE_DIR = Path(__file__).resolve().parent
-load_dotenv(BASE_DIR / '.env')
+LOCAL_TRIAL = os.getenv('LOCAL_TRIAL') == '1'
+if LOCAL_TRIAL:
+    if os.getenv('VERCEL'):
+        raise RuntimeError('Mode trial lokal tidak boleh dijalankan di Vercel.')
+    load_dotenv(BASE_DIR / '.env.local', override=True)
+    os.environ['DATABASE_URL'] = f"sqlite:///{(BASE_DIR / 'trial_local.db').as_posix()}"
+    # Trial tidak boleh membaca/menulis Sheets produksi.
+    for key in ('APPS_SCRIPT_URL', 'SYNC_API_KEY', 'GOOGLE_SHEET_URL'):
+        os.environ[key] = ''
+else:
+    load_dotenv(BASE_DIR / '.env')
 IS_CLOUD = bool(os.getenv('VERCEL'))
 DATABASE_URL = os.getenv('DATABASE_URL', '').strip()
 if not DATABASE_URL:
@@ -81,6 +91,14 @@ class User(Base):
     nama_lengkap = Column(String)
     npk = Column(String)
     jabatan = Column(String)
+
+class AccountAudit(Base):
+    __tablename__ = 'account_audit'
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    actor = Column(String, nullable=False)
+    target_username = Column(String, nullable=False)
+    event = Column(String, nullable=False)
+    created_at = Column(DateTime, default=now)
 
 class SyncJob(Base):
     __tablename__ = 'sync_jobs'

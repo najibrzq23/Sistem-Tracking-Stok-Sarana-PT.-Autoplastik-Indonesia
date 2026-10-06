@@ -12,7 +12,7 @@ from fastapi.staticfiles import StaticFiles
 from starlette.middleware.sessions import SessionMiddleware
 from sqlalchemy import text
 from database import (BASE_DIR, IS_CLOUD, IS_POSTGRES, PRIMARY_ADMIN, SessionLocal,
-                      Sarana, LogScan, User, SyncJob, LoginAttempt, init_db,
+                      Sarana, LogScan, User, SyncJob, LoginAttempt, AccountAudit, init_db,
                       lock_writes, hash_password, verify_password, now)
 from sync_sheets import import_data, enqueue, flush_one, configured
 
@@ -39,7 +39,8 @@ async def access_control(request: Request, call_next):
         if path not in ['/api/login','/api/health']:
             with SessionLocal() as session:
                 user = session.get(User, request.session.get('user_id')) if request.session.get('user_id') else None
-                if not user:
+                if not user or request.session.get('credential_tag') != hashlib.sha256(user.password.encode()).hexdigest():
+                    request.session.clear()
                     return JSONResponse({'message':'Silakan login kembali.'}, status_code=401)
                 request.state.actor = user.username
                 request.state.role = user.role
@@ -84,7 +85,7 @@ def escaped(value):
 
 @app.get('/', response_class=HTMLResponse)
 def root():
-    return (BASE_DIR/'index.html').read_text(encoding='utf-8')
+    return HTMLResponse((BASE_DIR/'index.html').read_text(encoding='utf-8'), headers={'Cache-Control':'no-store'})
 
 @app.get('/api/health')
 def health():
@@ -111,6 +112,7 @@ def login(request:Request, username:str=Form(...), password:str=Form(...)):
             raise HTTPException(401,'Username atau password salah.')
         attempt.count=0;session.commit()
         request.session.clear();request.session['user_id']=user.id
+        request.session['credential_tag']=hashlib.sha256(user.password.encode()).hexdigest()
         return {'status':'success','user':public_user(user)}
 
 @app.post('/api/logout')
@@ -173,6 +175,30 @@ def create_user(nama_lengkap:str=Form(...),username:str=Form(...),npk:str=Form(.
                          nama_lengkap=nama_lengkap.strip(),npk=npk.strip(),jabatan=jabatan.strip()))
         session.commit()
     return {'status':'success','message':'Akun berhasil dibuat.'}
+
+@app.post('/api/admin/users/reset-password/{user_id}')
+def reset_password(user_id:int, request:Request, password:str=Form(...),
+                   confirm_password:str=Form(...)):
+    require(12 <= len(password) <= 256, 'Password minimal 12 dan maksimal 256 karakter.')
+    require(password == confirm_password, 'Konfirmasi password tidak sama.')
+    with SessionLocal() as session:
+        lock_writes(session)
+        user = session.get(User, user_id)
+        require(user is not None, 'Akun tidak ditemukan.', 404)
+        require(not verify_password(password, user.password), 'Gunakan password baru yang berbeda.')
+        user.password = hash_password(password)
+        key = hashlib.sha256(user.username.lower().encode()).hexdigest()
+        attempt = session.get(LoginAttempt, key)
+        if attempt:
+            session.delete(attempt)
+        session.add(AccountAudit(actor=request.state.actor,
+                                 target_username=user.username, event='RESET_PASSWORD'))
+        own_account = user.id == request.session['user_id']
+        session.commit()
+    if own_account:
+        request.session.clear()
+    return {'status':'success', 'logout':own_account,
+            'message':'Password berhasil direset. Akun harus login menggunakan password baru.'}
 
 @app.delete('/api/admin/users/delete/{user_id}')
 def delete_user(user_id:int,request:Request):
