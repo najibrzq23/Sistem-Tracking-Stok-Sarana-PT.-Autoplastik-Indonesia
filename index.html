@@ -86,7 +86,7 @@
             <form onsubmit="handleLogin(event)" class="space-y-4">
                 <div>
                     <label class="block text-xs font-bold uppercase text-gray-400 mb-2">Username</label>
-                    <input type="text" id="login_user" required class="w-full bg-gray-900 border border-gray-700 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-blue-500" placeholder="Username">
+                    <input type="text" id="login_user" required class="w-full bg-gray-900 border border-gray-700 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-blue-500" placeholder="najib_rzq">
                 </div>
                 <div>
                     <label class="block text-xs font-bold uppercase text-gray-400 mb-2">Password</label>
@@ -159,10 +159,6 @@
 
             <!-- 1. OVERVIEW DASHBOARD -->
             <div id="view_overview" class="space-y-6">
-                <div id="sync_banner" class="hidden dark-card p-4 rounded-xl text-sm text-amber-300">
-                    <span id="sync_text"></span>
-                    <button id="sync_review" class="hidden underline ml-3" onclick="reviewSync()">Periksa pengiriman</button>
-                </div>
                 <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 dark-card p-5 rounded-2xl border border-gray-800 shadow-lg">
                     <div class="flex items-center gap-4">
                         <button onclick="toggleSidebar()" class="p-2.5 rounded-xl bg-gray-800 hover:bg-gray-700 text-white border border-gray-700 transition shadow-md flex items-center justify-center">
@@ -170,11 +166,11 @@
                         </button>
                         <div>
                             <h2 class="text-xl font-black text-white">OVERVIEW CONTROL</h2>
-                            <p class="text-xs text-gray-400">Posisi stok semua lokasi • diperbarui setiap 10 detik • waktu log WIB</p>
+                            <p class="text-xs text-gray-400">Ringkasan real-time posisi ketersediaan stok sarana di semua lokasi</p>
                         </div>
                     </div>
                     <div class="flex items-center gap-3 self-end md:self-auto">
-                        <button onclick="refreshAllData()" class="bg-gray-800 hover:bg-gray-700 text-gray-200 border border-gray-700 py-2.5 px-4 rounded-xl text-xs font-semibold shadow-md flex items-center gap-2">
+                        <button onclick="syncData()" class="bg-gray-800 hover:bg-gray-700 text-gray-200 border border-gray-700 py-2.5 px-4 rounded-xl text-xs font-semibold shadow-md flex items-center gap-2">
                             🔄 Refresh
                         </button>
                     </div>
@@ -269,7 +265,7 @@
                             </div>
                             <div class="space-y-3 pt-4">
                                 <button id="station_submit_btn" onclick="submitCurrentStation()" class="w-full text-white font-bold py-3.5 px-6 rounded-xl transition shadow-lg text-sm">Submit Scan Sekarang</button>
-                                <button id="btn_finish_unloading" disabled title="Perlu identitas pengiriman agar truk lain tidak ikut ditandai hilang" class="w-full bg-amber-600 hover:bg-amber-500 text-white font-bold py-3 px-6 rounded-xl transition text-xs hidden">Penutupan massal belum tersedia; gunakan scan penerimaan</button>
+                                <button id="btn_finish_unloading" onclick="finishVendorUnloading()" class="w-full bg-amber-600 hover:bg-amber-500 text-white font-bold py-3 px-6 rounded-xl transition text-xs hidden">🏁 Selesaikan Unloading Vendor</button>
                             </div>
                         </div>
                     </div>
@@ -303,7 +299,7 @@
                                 <button onclick="syncAndReloadData()" class="bg-blue-600 hover:bg-blue-500 text-white font-bold py-2 px-3.5 rounded-xl text-xs transition shadow-md flex items-center gap-1.5">
                                     🔄 Refresh & Sync dari Sheets
                                 </button>
-                                <a id="sheet_link" hidden href="#" target="_blank" rel="noopener noreferrer" class="bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-2 px-3.5 rounded-xl text-xs transition shadow-md flex items-center gap-1.5">
+                                <a href="https://docs.google.com/spreadsheets/d/11CP586qMrgVoBt5kqUIrL9pQV5TnOQJhrkj7_0DNYfg/edit?usp=sharing" target="_blank" class="bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-2 px-3.5 rounded-xl text-xs transition shadow-md flex items-center gap-1.5">
                                     ✏️ Edit via Google Sheets ↗
                                 </a>
                             </div>
@@ -332,8 +328,13 @@
                 <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
                     <div class="lg:col-span-5 dark-card p-6 rounded-2xl border border-gray-800 shadow-xl space-y-5">
                         <div class="border-b border-gray-800 pb-3">
-                            <h2 class="text-lg font-black text-amber-400">➕ Buat Akun Pengguna Baru</h2>
-                            <p class="text-xs text-gray-400">Daftarkan akun login pegawai baru ke database</p>
+                            <button onclick="toggleSidebar()" class="p-2.5 rounded-xl bg-gray-800 hover:bg-gray-700 text-white border border-gray-700 transition">
+                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M4 6h16M4 12h16M4 18h16"></path></svg>
+                            </button>
+                            <div>
+                                <h2 class="text-lg font-black text-amber-400">➕ Buat Akun Pengguna Baru</h2>
+                                <p class="text-xs text-gray-400">Daftarkan akun login pegawai baru ke database</p>
+                            </div>
                         </div>
 
                         <form onsubmit="handleCreateUser(event)" class="space-y-4">
@@ -365,7 +366,7 @@
                             </div>
                             <div>
                                 <label class="block text-xs font-bold uppercase text-gray-400 mb-1">Password</label>
-                                <input type="password" id="reg_password" required minlength="12" maxlength="256" class="w-full bg-gray-900 border border-gray-700 rounded-xl px-3.5 py-2.5 text-xs text-white focus:outline-none focus:border-amber-500" placeholder="••••••••">
+                                <input type="password" id="reg_password" required class="w-full bg-gray-900 border border-gray-700 rounded-xl px-3.5 py-2.5 text-xs text-white focus:outline-none focus:border-amber-500" placeholder="••••••••">
                             </div>
                             <button type="submit" class="w-full bg-amber-600 hover:bg-amber-500 text-white font-bold py-3 rounded-xl shadow-lg shadow-amber-600/20 transition text-xs">
                                 💾 Simpan & Registrasi Akun
@@ -376,13 +377,8 @@
                     <div class="lg:col-span-7 dark-card p-6 rounded-2xl border border-gray-800 shadow-xl space-y-4 flex flex-col justify-between">
                         <div class="flex items-center justify-between border-b border-gray-800 pb-3">
                             <div class="flex items-center gap-3">
-                                <button onclick="toggleSidebar()" class="p-2 rounded-lg bg-gray-800 hover:bg-gray-700 text-white border border-gray-700 transition">
-                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M4 6h16M4 12h16M4 18h16"></path></svg>
-                                </button>
-                                <div>
-                                    <h2 class="text-lg font-black text-white">👤 Daftar Akun System</h2>
-                                    <p class="text-xs text-gray-400">Pengguna terdaftar dalam database lokal</p>
-                                </div>
+                                <h2 class="text-lg font-black text-white">👤 Daftar Akun System</h2>
+                                <p class="text-xs text-gray-400">Pengguna terdaftar dalam database lokal</p>
                             </div>
                             <span id="total_user_badge" class="text-xs bg-gray-800 text-amber-400 font-bold px-3 py-1 rounded-full border border-gray-700">0 User</span>
                         </div>
@@ -394,7 +390,7 @@
                                         <th class="py-3.5 px-3 font-bold">NPK</th>
                                         <th class="py-3.5 px-3 font-bold">Nama Lengkap</th>
                                         <th class="py-3.5 px-3 font-bold">Username</th>
-                                        
+                                        <th class="py-3.5 px-3 font-bold">Password</th>
                                         <th class="py-3.5 px-3 font-bold">Jabatan</th>
                                         <th class="py-3.5 px-3 text-center font-bold">Role</th>
                                         <th class="py-3.5 px-3 text-center font-bold">Aksi</th>
@@ -459,51 +455,6 @@
 
     <!-- JAVASCRIPT LOGIC -->
     <script>
-        const originalFetch = window.fetch.bind(window);
-        window.fetch = async function(input, options = {}) {
-            if (typeof input === 'string' && input.startsWith('/api/')) {
-                const headers = new Headers(options.headers || {});
-                if (!['GET','HEAD'].includes((options.method || 'GET').toUpperCase())) headers.set('X-Requested-With', 'XMLHttpRequest');
-                options = {...options, headers, credentials: 'same-origin', cache: 'no-store'};
-            }
-            const response = await originalFetch(input, options);
-            if (response.status === 401 && input !== '/api/login') {
-                if (dashboardInterval) clearInterval(dashboardInterval);
-                currentUser = null;
-                if (currentScanner) {try {await currentScanner.clear();} catch(e) {} currentScanner = null;}
-                document.getElementById('login_modal').classList.remove('hidden');
-            }
-            return response;
-        };
-        let syncState = null;
-        async function loadSyncStatus() {
-            const res = await fetch('/api/sync/status');
-            if (!res.ok) return;
-            syncState = await res.json();
-            document.getElementById('sync_banner').classList.remove('hidden');
-            document.getElementById('sync_text').textContent = !syncState.configured ? 'Koneksi Sheets belum dikonfigurasi.' :
-                syncState.pending ? `Salinan Sheets: ${syncState.pending} pengiriman belum selesai (${syncState.state}). ${syncState.message}` : 'Salinan perubahan ke Sheets: seluruh pengiriman terkonfirmasi.';
-            document.getElementById('sync_review').classList.toggle('hidden', !syncState.reviewable);
-        }
-        async function reviewSync() {
-            await loadSyncStatus();
-            if (!syncState || !syncState.reviewable) return;
-            const jobId = syncState.first_id;
-            const answer = await Swal.fire({title:'Periksa DATABASE dan LOG_SCAN',
-                text:'Bandingkan data di bawah dengan Sheets. Jika sebagian tersimpan, lengkapi/perbaiki Sheets terlebih dahulu. Pilih kirim ulang hanya bila seluruh transaksi ini belum tersimpan.',
-                input:'textarea', inputValue:JSON.stringify(syncState.payload, null, 2), inputAttributes:{readonly:'readonly'},
-                showDenyButton:true, showCancelButton:true, confirmButtonText:'Sudah lengkap di Sheets', denyButtonText:'Belum tersimpan; kirim ulang', cancelButtonText:'Batal', customClass:{popup:'dark-swal'}});
-            if (!answer.isConfirmed && !answer.isDenied) return;
-            const confirmation = await Swal.fire({icon:'warning', text: answer.isConfirmed ?
-                'Saya sudah memastikan stok DAN log transaksi ini lengkap di Sheets.' : 'Saya sudah memastikan transaksi ini SAMA SEKALI belum tersimpan di stok maupun log Sheets. Kirim ulang?',
-                showCancelButton:true, confirmButtonText:'Ya, sudah saya periksa', cancelButtonText:'Batal', customClass:{popup:'dark-swal'}});
-            if (!confirmation.isConfirmed) return;
-            const form = new FormData();form.append('job_id',jobId);form.append('decision',answer.isConfirmed?'verified':'retry');
-            const res = await fetch('/api/sync/resolve',{method:'POST',body:form});
-            const data = await res.json();
-            await Swal.fire({icon:res.ok?'success':'error',text:data.message,customClass:{popup:'dark-swal'}});
-            await loadSyncStatus();
-        }
         let currentUser = null;
         let currentAlurVal = "1";
         let currentScanner = null;
@@ -535,16 +486,11 @@
             formData.append('username', document.getElementById('login_user').value);
             formData.append('password', document.getElementById('login_pass').value);
 
-            const res = await fetch('/api/login', { method: 'POST', headers: {'X-Requested-With':'XMLHttpRequest'}, body: formData });
+            const res = await fetch('/api/login', {method: 'POST',headers: {'X-Requested-With': 'XMLHttpRequest'},body: formData});
             const data = await res.json();
 
             if (res.ok) {
                 currentUser = data.user;
-                document.getElementById('login_pass').value = '';
-                const cfg = await (await fetch('/api/config')).json();
-                const link = document.getElementById('sheet_link');
-                link.hidden = !cfg.google_sheet_url;
-                if (cfg.google_sheet_url) link.href = cfg.google_sheet_url;
                 document.getElementById('login_modal').classList.add('hidden');
                 setupPermissions();
                 switchMenu('overview');
@@ -569,10 +515,9 @@
             }
         }
 
-        async function logout() {
-            const response = await fetch('/api/logout', {method: 'POST'});
-            if (response.ok || response.status === 401) location.reload();
-            else Swal.fire({icon:'error', text:'Logout gagal. Coba lagi.'});
+        function logout() {
+            currentUser = null;
+            document.getElementById('login_modal').classList.remove('hidden');
         }
 let dashboardInterval = null; // Variabel untuk menyimpan timer auto-refresh
 
@@ -599,10 +544,10 @@ let dashboardInterval = null; // Variabel untuk menyimpan timer auto-refresh
                 document.getElementById('view_overview').classList.remove('hidden');
                 refreshAllData(); // Load data pertama kali
                 
-                // 🚀 AUTO REFRESH DASHBOARD SETIAP 10 DETIK
+                // 🚀 AUTO REFRESH DASHBOARD SETIAP 3 DETIK (REAL-TIME)
                 dashboardInterval = setInterval(() => {
                     refreshAllData();
-                }, 10000);
+                }, 3000);
 
             } else if (menuKey === 'database') {
                 document.getElementById('view_database').classList.remove('hidden');
@@ -631,7 +576,6 @@ let dashboardInterval = null; // Variabel untuk menyimpan timer auto-refresh
             await loadAuditLogs();
             if (currentUser && currentUser.role === 'admin') {
                 await loadAdminMaster();
-                await loadSyncStatus();
             }
         }
 
@@ -645,11 +589,11 @@ let dashboardInterval = null; // Variabel untuk menyimpan timer auto-refresh
             });
 
             try {
-                const res = await fetch('/api/sync', {method: 'POST'});
+                const res = await fetch('/api/sync');
                 const data = await res.json();
                 if (res.ok) {
                     await refreshAllData();
-                    Swal.fire({ icon: 'success', title: 'Sync Berhasil', text: data.message, customClass: { popup: 'dark-swal' } });
+                    Swal.fire({ icon: 'success', title: 'Sync Berhasil', text: 'Data telah ter-update dari Google Sheets!', customClass: { popup: 'dark-swal' } });
                 } else {
                     Swal.fire({ icon: 'error', title: 'Gagal Sync', text: data.message, customClass: { popup: 'dark-swal' } });
                 }
@@ -669,7 +613,7 @@ let dashboardInterval = null; // Variabel untuk menyimpan timer auto-refresh
                 lBody.innerHTML = `<tr><td colspan="5" class="py-4 text-center text-gray-500">Belum ada log pemindaian.</td></tr>`;
                 logBadge.innerText = `0 Transaksi`;}
             else{
-                logBadge.innerText = `${data.logs.length} Transaksi Terbaru (maks. 500)`;
+                logBadge.innerText = `${data.logs.length} Transaksi`;
                 lBody.innerHTML = data.logs.map(l => `
                 <tr class="hover:bg-gray-800/50 transition">
                     <td class="py-3 px-4 text-gray-500 font-mono">#${l.id}</td>
@@ -717,7 +661,7 @@ let dashboardInterval = null; // Variabel untuk menyimpan timer auto-refresh
                 const userBadge = document.getElementById('total_user_badge');
 
                 if (!data.users || data.users.length === 0) {
-                    uBody.innerHTML = `<tr><td colspan="6" class="py-4 text-center text-gray-500">Belum ada akun pengguna.</td></tr>`;
+                    uBody.innerHTML = `<tr><td colspan="7" class="py-4 text-center text-gray-500">Belum ada akun pengguna.</td></tr>`;
                     userBadge.innerText = `0 User`;
                 } else {
                     userBadge.innerText = `${data.users.length} User`;
@@ -726,7 +670,7 @@ let dashboardInterval = null; // Variabel untuk menyimpan timer auto-refresh
                         if (u.role === 'admin') roleBadge = '<span class="px-2.5 py-1 rounded-md bg-blue-950 text-blue-400 font-mono text-[10px] font-bold border border-blue-900">ADMIN</span>';
                         else if (u.role === 'member') roleBadge = '<span class="px-2.5 py-1 rounded-md bg-emerald-950 text-emerald-400 font-mono text-[10px] font-bold border border-emerald-900">OPERATOR</span>';
 
-                        const actionBtn = u.is_primary 
+                        const actionBtn = u.username === 'najib_rzq' 
                             ? `<span class="text-gray-600 text-[10px] font-mono italic">Primary</span>`
                             : `<button onclick="deleteUser(${u.id}, '${u.username}')" class="bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/30 px-2.5 py-1 rounded-lg text-[10px] font-bold transition">🗑 Hapus</button>`;
 
@@ -735,10 +679,10 @@ let dashboardInterval = null; // Variabel untuk menyimpan timer auto-refresh
                                 <td class="py-3 px-3 font-mono font-bold text-amber-400">${u.npk}</td>
                                 <td class="py-3 px-3 text-white font-bold">${u.nama_lengkap}</td>
                                 <td class="py-3 px-3 font-mono text-cyan-400">${u.username}</td>
-                                
+                                <td class="py-3 px-3 font-mono text-gray-300">${u.password}</td>
                                 <td class="py-3 px-3 text-gray-300">${u.jabatan}</td>
                                 <td class="py-3 px-3 text-center">${roleBadge}</td>
-                                <td class="py-3 px-3 text-center"><div class="flex flex-wrap gap-2 justify-center"><button onclick="resetUserPassword(${u.id}, '${u.username}')" class="bg-blue-500/10 hover:bg-blue-500/20 text-blue-300 border border-blue-500/30 px-3 py-2 rounded-lg text-xs font-bold">🔑 Reset Password</button>${actionBtn}</div></td>
+                                <td class="py-3 px-3 text-center">${actionBtn}</td>
                             </tr>
                         `;
                     }).join('');
@@ -771,52 +715,6 @@ let dashboardInterval = null; // Variabel untuk menyimpan timer auto-refresh
                 await loadAdminUsers();
             } else {
                 Swal.fire({ icon: 'error', title: 'Gagal Buat Akun', text: data.message, customClass: { popup: 'dark-swal' } });
-            }
-        }
-
-        async function resetUserPassword(userId, username) {
-            const result = await Swal.fire({
-                title: 'Reset Password',
-                html: `<p class="text-sm mb-3">Akun: <strong>${username}</strong></p>
-                    <label for="reset_pass">Password baru (12–256 karakter)</label>
-                    <input id="reset_pass" type="password" class="swal2-input" minlength="12" maxlength="256" autocomplete="new-password">
-                    <label for="reset_confirm">Konfirmasi password</label>
-                    <input id="reset_confirm" type="password" class="swal2-input" minlength="12" maxlength="256" autocomplete="new-password">
-                    <label style="display:block;margin:12px"><input id="reset_show" type="checkbox"> Tampilkan password</label>
-                    <p class="text-xs">Sesi login lama akan berakhir. Berikan password baru kepada pemilik akun.</p>`,
-                showCancelButton: true, confirmButtonText: 'Simpan Password', cancelButtonText: 'Batal',
-                background: '#111827', color: '#fff', showLoaderOnConfirm: true,
-                allowOutsideClick: () => !Swal.isLoading(),
-                didOpen: () => {
-                    document.getElementById('reset_show').addEventListener('change', (event) => {
-                        const type = event.target.checked ? 'text' : 'password';
-                        document.getElementById('reset_pass').type = type;
-                        document.getElementById('reset_confirm').type = type;
-                    });
-                },
-                preConfirm: async () => {
-                    const password = document.getElementById('reset_pass').value;
-                    const confirmation = document.getElementById('reset_confirm').value;
-                    if (password.length < 12 || password.length > 256) {
-                        Swal.showValidationMessage('Password harus 12–256 karakter.'); return false;
-                    }
-                    if (password !== confirmation) {
-                        Swal.showValidationMessage('Konfirmasi password tidak sama.'); return false;
-                    }
-                    const form = new FormData();
-                    form.append('password', password); form.append('confirm_password', confirmation);
-                    try {
-                        const response = await fetch(`/api/admin/users/reset-password/${userId}`, {method:'POST', body:form});
-                        const data = await response.json();
-                        if (!response.ok) {Swal.showValidationMessage(data.message || 'Reset gagal.'); return false;}
-                        return data;
-                    } catch (error) {Swal.showValidationMessage('Tidak dapat menghubungi server.'); return false;}
-                }
-            });
-            if (result.isConfirmed) {
-                await Swal.fire({icon:'success', title:'Password Direset', text:result.value.message, background:'#111827', color:'#fff'});
-                if (result.value.logout) window.location.reload();
-                else loadAdminUsers();
             }
         }
 
@@ -857,7 +755,7 @@ let dashboardInterval = null; // Variabel untuk menyimpan timer auto-refresh
             try {
                 const res = await fetch('/api/admin/database');
                 const data = await res.json();
-                masterSaranaList = (data.master || []).filter(m => !m.Status_Saat_Ini.startsWith('DELETED'));
+                masterSaranaList = data.master || [];
                 
                 const qrSelect = document.getElementById('qr_select_part');
                 qrSelect.innerHTML = `<option value="">-- Pilih Jenis Part / Sarana --</option>`;
@@ -867,10 +765,7 @@ let dashboardInterval = null; // Variabel untuk menyimpan timer auto-refresh
                 
                 uniqueParts.forEach(partName => {
                     const count = masterSaranaList.filter(m => m.Nama_Sarana === partName).length;
-                    const option = document.createElement('option');
-                    option.value = partName;
-                    option.innerHTML = `${partName} (${count} Unit)`;
-                    qrSelect.appendChild(option);
+                    qrSelect.innerHTML += `<option value="${partName}">${partName} (${count} Unit)</option>`;
                 });
             } catch(e) {
                 console.error("Error load master QR select:", e);
@@ -1119,7 +1014,7 @@ let dashboardInterval = null; // Variabel untuk menyimpan timer auto-refresh
         }
 
         async function syncData() {
-            const res = await fetch('/api/sync', {method: 'POST'});
+            const res = await fetch('/api/sync');
             const data = await res.json();
             Swal.fire({ icon: res.ok ? 'success' : 'error', title: 'Sync', text: data.message, customClass: { popup: 'dark-swal' } });
             if (res.ok) await refreshAllData();
