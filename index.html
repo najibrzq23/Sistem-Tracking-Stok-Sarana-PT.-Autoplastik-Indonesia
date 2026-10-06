@@ -1402,5 +1402,37 @@ let dashboardInterval = null; // Variabel untuk menyimpan timer auto-refresh
         </form>
     </div>
 </div>
+
+    <script>
+    // Keep a single table/data source; mobile labels follow the desktop headings.
+    document.querySelectorAll('main table').forEach(function(table) {
+        table.classList.add('responsive-table');
+        const scroller = table.parentElement;
+        scroller.classList.add('mobile-table-scroll');
+        scroller.setAttribute('tabindex', '0');
+        scroller.setAttribute('aria-label', 'Daftar data, gulir untuk melihat baris berikutnya');
+        const labels = Array.from(table.querySelectorAll('thead th')).map(th => th.textContent.trim());
+        const body = table.querySelector('tbody');
+        function updateLabels() {
+            body.querySelectorAll('tr').forEach(function(row) {
+                Array.from(row.cells).forEach(function(cell, index) {
+                    if (!cell.hasAttribute('colspan')) cell.dataset.label = labels[index] || '';
+                });
+            });
+        }
+        updateLabels();
+        new MutationObserver(updateLabels).observe(body, {childList: true, subtree: true});
+    });
+    document.querySelectorAll('button[onclick="toggleSidebar()"]').forEach(function(button) {
+        button.setAttribute('aria-label', button.closest('#sidebar') ? 'Tutup menu' : 'Buka menu');
+        button.setAttribute('aria-controls', 'sidebar');
+    });
+    document.getElementById('login_user').autocomplete = 'username';
+    document.getElementById('login_pass').autocomplete = 'current-password';
+    document.addEventListener('keydown', function(event) {
+        if (event.key === 'Escape' && !document.getElementById('sidebar').classList.contains('-translate-x-full')) toggleSidebar();
+    });
+    </script>
+
 </body>
 </html>
