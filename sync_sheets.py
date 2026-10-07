@@ -77,7 +77,7 @@ def flush_one():
         )
 
         # Pengiriman tidak pasti harus ditinjau dahulu.
-        if not job or job.state != "pending":
+        if not job:
             session.rollback()
             return {
                 "status": "idle",
