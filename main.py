@@ -362,6 +362,10 @@ def scan(request:Request,background_tasks:BackgroundTasks,id_sarana:str=Form(...
              '4':('IN_TRANSIT_IN','AT_API','In Truck → PT API In')}
     require(alur in targets,'Alur tidak valid.')
     previous,target,label=targets[alur]
+    require(
+        configured(),
+        "Scan belum disimpan: integrasi Sheets belum dikonfigurasi.",
+        503,)
     with SessionLocal() as session:
         lock_writes(session)
         unit=session.get(Sarana,id_sarana.strip());require(unit is not None,'ID tidak terdaftar.',404)

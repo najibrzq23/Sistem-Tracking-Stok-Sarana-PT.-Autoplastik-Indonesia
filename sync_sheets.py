@@ -42,15 +42,21 @@ def safe_message(value):
 
 def enqueue(session, payload):
     """Simpan antrean dalam transaksi stok yang sama."""
-    if configured():
-        session.add(
-            SyncJob(
-                payload=json.dumps(
-                    payload,
-                    ensure_ascii=False,
-                )
-            )
+    if not configured():
+        raise RuntimeError(
+            "Integrasi Sheets belum dikonfigurasi. "
+            "Periksa APPS_SCRIPT_URL dan SYNC_API_KEY."
         )
+
+    session.add(
+        SyncJob(
+            state="pending",
+            payload=json.dumps(
+                payload,
+                ensure_ascii=False,
+            ),
+        )
+    )
 
 
 def flush_one():
@@ -138,12 +144,21 @@ def flush_one():
             job.error = message
 
         session.commit()
-    return {
+    output = {
         "status": "success" if state == "done" else "review",
         "job_id": job_id,
         "job_state": state,
         "message": message
     }
+    if state == "done":
+        output["sheets_result"] = {
+            "message": result.get("message"),
+            "id_sarana": result.get("id_sarana"),
+            "status_sesudah": result.get("status_sesudah"),
+            "changed": result.get("changed"),
+        }
+
+    return output
 
 def _sync_revision(session):
     master = [
