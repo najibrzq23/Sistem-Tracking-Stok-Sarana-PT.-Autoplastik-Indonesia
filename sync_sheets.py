@@ -1,15 +1,19 @@
 """Impor master dan antrean salinan perubahan ke Google Sheets."""
-
+import datetime
+import hashlib
 import json
 import os
 import re
+from zoneinfo import ZoneInfo
 
 import requests
 
 from database import (
     SessionLocal,
     Sarana,
+    LogScan,
     SyncJob,
+    UnloadingGroup,
     lock_writes,
     now,
 )
@@ -121,62 +125,110 @@ def flush_one():
         session.commit()
 
 
-def import_data():
-    """Baca master Sheets dan impor ke database aplikasi."""
-    if not configured():
-        raise ValueError(
-            "Isi APPS_SCRIPT_URL dan SYNC_API_KEY "
-            "pada Environment Variables Vercel."
+def _sync_revision(session):
+    master = [
+        (
+            u.ID_Sarana,
+            u.Nama_Sarana,
+            u.No_Sarana,
+            u.Vendor,
+            u.Status_Saat_Ini,
         )
+        for u in session.query(Sarana).order_by(Sarana.ID_Sarana)
+    ]
 
-    if len(SYNC_API_KEY) < 32:
-        raise ValueError(
-            "SYNC_API_KEY di Vercel minimal 32 karakter "
-            "dan harus sama dengan Script Properties."
+    logs = [
+        (
+            l.id,
+            l.ID_Sarana,
+            l.Alur_Scan,
+            l.Vendor,
+            str(l.Waktu_Scan),
         )
+        for l in session.query(LogScan).order_by(LogScan.id)
+    ]
+
+    jobs = [
+        (j.id, j.state)
+        for j in session.query(SyncJob).order_by(SyncJob.id)
+    ]
+
+    groups = [
+        (g.id, g.state, g.snapshot)
+        for g in session.query(UnloadingGroup)
+        .order_by(UnloadingGroup.id)
+    ]
+
+    content = json.dumps(
+        [master, logs, jobs, groups],
+        ensure_ascii=False,
+    )
+
+    return hashlib.sha256(content.encode()).hexdigest()
+
+
+def import_data():
+    if not configured():
+        raise ValueError("Isi APPS_SCRIPT_URL dan SYNC_API_KEY.")
+
+    # Jangan menimpa transaksi yang belum terkirim ke Sheets.
+    with SessionLocal() as session:
+        lock_writes(session)
+
+        pending = session.query(SyncJob).filter(
+            SyncJob.state != "done"
+        ).first()
+
+        if pending:
+            raise ValueError(
+                "Masih ada antrean Sheets. Selesaikan/periksa "
+                "antrean sebelum menyamakan data."
+            )
+
+        baseline = _sync_revision(session)
+        session.rollback()
 
     try:
         response = requests.get(
             APPS_SCRIPT_URL,
-            params={"sync_key": SYNC_API_KEY},
-            timeout=(5, 20),
+            params={
+                "sync_key": SYNC_API_KEY,
+                "action": "snapshot",
+            },
+            timeout=(5, 30),
             allow_redirects=True,
         )
 
         response.raise_for_status()
+        data = response.json()
 
-    except requests.RequestException:
+    except (requests.RequestException, ValueError):
         raise ValueError(
-            "Tidak bisa mengakses Apps Script. "
-            "Periksa URL /exec dan akses Web app."
+            "Tidak dapat membaca snapshot Sheets. "
+            "Data web tidak diubah."
         ) from None
 
-    try:
-        rows = response.json()
-
-    except ValueError:
+    if (
+        not isinstance(data, dict)
+        or data.get("status") != "success"
+        or data.get("schema") != "tracking_snapshot_v1"
+    ):
         raise ValueError(
-            "Apps Script tidak membalas JSON. "
-            "Periksa URL /exec, akses Web app, "
-            "dan versi deployment."
-        ) from None
-
-    # Tampilkan pesan asli jika Apps Script membalas error.
-    if isinstance(rows, dict):
-        message = safe_message(rows.get("message"))
-
-        raise ValueError(
-            f"Apps Script: {message}"
+            "Snapshot tidak valid. Periksa versi deployment "
+            "Apps Script. Data web tidak diubah."
         )
 
-    if not isinstance(rows, list):
+    master = data.get("master")
+    logs = data.get("logs")
+
+    if not isinstance(master, list) or not isinstance(logs, list):
         raise ValueError(
-            "Respons Apps Script bukan daftar master. "
-            "Periksa URL deployment /exec."
+            "Snapshot master/log tidak valid. "
+            "Data web tidak diubah."
         )
 
     parsed = []
-    ids = set()
+    seen = set()
 
     valid_statuses = {
         "AT_API",
@@ -186,104 +238,113 @@ def import_data():
         "LOST_IN_TRANSIT",
     }
 
-    # Validasi seluruh data sebelum mengubah database.
-    for row in rows:
+    for row in master:
         if not isinstance(row, dict):
-            raise ValueError(
-                "Format baris spreadsheet tidak valid."
-            )
+            raise ValueError("Baris master tidak valid.")
 
-        id_sarana = str(
-            row.get("ID_Sarana") or ""
-        ).strip()
+        id_sarana = str(row.get("ID_Sarana") or "").strip()
+        name = str(row.get("Nama_Sarana") or "").strip()
+        status = str(row.get("Status_Saat_Ini") or "").strip()
 
-        if not id_sarana:
-            continue
-
-        if not re.fullmatch(
-            r"[A-Za-z0-9_.-]{1,100}",
-            id_sarana,
+        if (
+            not re.fullmatch(r"[A-Za-z0-9_.-]{1,100}", id_sarana)
+            or id_sarana in seen
+            or not name
         ):
             raise ValueError(
-                "ID harus berupa huruf, angka, titik, "
-                "underscore, atau tanda minus; "
-                "maksimal 100 karakter."
-            )
-
-        if id_sarana in ids:
-            raise ValueError(
-                "Spreadsheet memiliki ID duplikat: "
-                f"{id_sarana}. Perbaiki sebelum impor."
-            )
-
-        ids.add(id_sarana)
-
-        name = str(
-            row.get("Nama_Sarana") or ""
-        ).strip()
-
-        status = str(
-            row.get("Status_Saat_Ini") or "AT_API"
-        ).strip()
-
-        if not name:
-            raise ValueError(
-                f"Nama sarana kosong pada ID {id_sarana}."
+                "Master memiliki ID/nama kosong, "
+                "ID tidak valid, atau ID duplikat."
             )
 
         if (
             status not in valid_statuses
-            and not status.startswith("DELETED_NG")
+            and not re.fullmatch(r"DELETED_NG \(.+\)", status)
         ):
-            raise ValueError(
-                f"Status tidak valid pada ID {id_sarana}."
+            raise ValueError("Status master tidak valid.")
+
+        seen.add(id_sarana)
+
+        parsed.append({
+            "ID_Sarana": id_sarana,
+            "Nama_Sarana": name,
+            "No_Sarana": str(row.get("No_Sarana") or ""),
+            "Vendor": str(row.get("Vendor") or "-"),
+            "Status_Saat_Ini": status,
+        })
+
+    parsed_logs = []
+
+    for row in logs:
+        if not isinstance(row, dict):
+            raise ValueError("Baris log tidak valid.")
+
+        id_sarana = str(row.get("ID_Sarana") or "").strip()
+        event = str(row.get("Alur_Scan") or "").strip()
+
+        try:
+            timestamp = datetime.datetime.fromisoformat(
+                str(row.get("Waktu_Scan") or "").strip()
             )
 
-        parsed.append(
-            {
-                "ID_Sarana": id_sarana,
-                "Nama_Sarana": name,
-                "No_Sarana": str(
-                    row.get("No_Sarana") or ""
-                ),
-                "Vendor": str(
-                    row.get("Vendor") or "-"
-                ),
-                "Status_Saat_Ini": status,
-            }
-        )
+            if timestamp.tzinfo:
+                timestamp = timestamp.astimezone(
+                    ZoneInfo("Asia/Jakarta")
+                ).replace(tzinfo=None)
 
-    added = 0
-    updated = 0
+        except ValueError:
+            raise ValueError(
+                "Waktu_Scan harus berupa tanggal valid, "
+                "contoh 2026-10-07 08:00:00."
+            ) from None
 
+        if not id_sarana or not event:
+            raise ValueError("ID atau Alur_Scan log kosong.")
+
+        parsed_logs.append({
+            "ID_Sarana": id_sarana,
+            "Alur_Scan": event,
+            "Vendor": str(row.get("Vendor") or "-"),
+            "Waktu_Scan": timestamp,
+        })
+
+    # Semua validasi selesai sebelum mengubah database.
     with SessionLocal() as session:
         lock_writes(session)
 
-        existing = {
-            unit.ID_Sarana: unit
-            for unit in session.query(Sarana).all()
-        }
+        pending = session.query(SyncJob).filter(
+            SyncJob.state != "done"
+        ).first()
 
-        for row in parsed:
-            unit = existing.get(row["ID_Sarana"])
+        if pending or _sync_revision(session) != baseline:
+            raise ValueError(
+                "Data web berubah ketika membaca Sheets. "
+                "Hentikan scan sebentar lalu ulangi Sync."
+            )
 
-            if unit:
-                unit.Nama_Sarana = row["Nama_Sarana"]
-                unit.No_Sarana = row["No_Sarana"]
-                unit.Vendor = row["Vendor"]
+        old_master = session.query(Sarana).count()
+        old_logs = session.query(LogScan).count()
 
-                # Pertahankan status operasional/NG
-                # yang sudah ada di database online.
-                updated += 1
+        session.query(UnloadingGroup).delete(
+            synchronize_session=False
+        )
+        session.query(LogScan).delete(
+            synchronize_session=False
+        )
+        session.query(Sarana).delete(
+            synchronize_session=False
+        )
 
-            else:
-                session.add(Sarana(**row))
-                added += 1
+        session.add_all([
+            Sarana(**row) for row in parsed
+        ])
+        session.add_all([
+            LogScan(**row) for row in parsed_logs
+        ])
 
         session.commit()
 
     return (
-        f"Impor selesai: {added} unit baru, "
-        f"{updated} metadata diperbarui. "
-        "Status unit lama dipertahankan."
+        f"Sheets diterapkan: master {old_master} → {len(parsed)}, "
+        f"log {old_logs} → {len(parsed_logs)}. "
+        "Sesi unloading direset; akun dan vendor tetap tersimpan."
     )

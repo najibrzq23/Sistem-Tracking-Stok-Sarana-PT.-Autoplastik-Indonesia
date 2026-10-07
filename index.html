@@ -572,11 +572,12 @@ button:disabled { opacity: .55; cursor: not-allowed; }
             const res = await fetch('/api/sync/status');
             if (!res.ok) return;
             syncState = await res.json();
-            document.getElementById('sync_banner').classList.remove('hidden');
+            const showSyncWarning =
+            !syncState.configured || syncState.pending > 0;
+            document.getElementById('sync_banner').classList.toggle('hidden', !showSyncWarning);
             document.getElementById('sync_text').textContent = !syncState.configured ? 'Koneksi Sheets belum dikonfigurasi.' :
                 syncState.pending ? `Salinan Sheets: ${syncState.pending} pengiriman belum selesai (${syncState.state}). ${syncState.message}` : 'Salinan perubahan ke Sheets: seluruh pengiriman terkonfirmasi.';
-            document.getElementById('sync_review').classList.toggle('hidden', !syncState.reviewable);
-        }
+            document.getElementById('sync_review').classList.toggle('hidden', !syncState.reviewable);}
         async function reviewSync() {
             await loadSyncStatus();
             if (!syncState || !syncState.reviewable) return;
@@ -1357,8 +1358,112 @@ let dashboardInterval = null; // Variabel untuk menyimpan timer auto-refresh
 
         document.getElementById('station_id_input').addEventListener('keypress', (e) => { if (e.key === 'Enter') submitCurrentStation(); });
     
-        function openAddStokModal() {
-        document.getElementById('add_stok_modal').classList.remove('hidden');}
+        async function loadVendorOptions(selectedValue = '') {
+            const response = await fetch('/api/admin/sarana/vendors');
+            const data = await response.json();
+
+            if (!response.ok) {
+                throw new Error(data.message || 'Daftar vendor gagal dimuat.');
+            }
+
+            const select = document.getElementById('add_vendor');
+
+            select.replaceChildren(
+                new Option('-- Pilih Vendor --', '')
+            );
+
+            data.vendors.forEach(name => {
+                select.add(new Option(name, name));
+            });
+
+            select.add(
+                new Option('➕ Tambah Vendor Baru', '__ADD_VENDOR__')
+            );
+
+            select.value = selectedValue;
+        }
+
+        async function handleVendorChange() {
+            const select = document.getElementById('add_vendor');
+
+            if (select.value !== '__ADD_VENDOR__') return;
+
+            select.value = '';
+
+            const answer = await Swal.fire({
+                title: 'Tambah Vendor Baru',
+                input: 'text',
+                inputLabel: 'Nama vendor',
+                inputPlaceholder: 'Contoh: VENDOR BARU',
+                inputAttributes: {
+                    maxlength: '100',
+                    autocomplete: 'off'
+                },
+                showCancelButton: true,
+                confirmButtonText: 'Simpan Vendor',
+                cancelButtonText: 'Batal',
+                customClass: { popup: 'dark-swal' },
+                inputValidator: value => {
+                    if (!value || !value.trim()) {
+                        return 'Nama vendor wajib diisi.';
+                    }
+                }
+            });
+
+            if (!answer.isConfirmed) return;
+
+            const form = new FormData();
+            form.append('name', answer.value);
+
+            try {
+                const response = await fetch('/api/admin/sarana/vendors', {
+                    method: 'POST',
+                    body: form
+                });
+
+                const data = await response.json();
+
+                if (!response.ok) {
+                    throw new Error(data.message || 'Vendor gagal disimpan.');
+                }
+
+                await loadVendorOptions(data.name);
+
+                await Swal.fire({
+                    icon: 'success',
+                    title: 'Vendor Ditambahkan',
+                    text: data.name,
+                    timer: 1000,
+                    showConfirmButton: false,
+                    customClass: { popup: 'dark-swal' }
+                });
+
+            } catch (error) {
+                await Swal.fire({
+                    icon: 'error',
+                    title: 'Belum Berhasil',
+                    text: error.message,
+                    customClass: { popup: 'dark-swal' }
+                });
+            }
+        }
+
+        async function openAddStokModal() {
+            try {
+                await loadVendorOptions();
+
+                document.getElementById('add_stok_modal')
+                    .classList.remove('hidden');
+
+            } catch (error) {
+                Swal.fire({
+                    icon: 'error',
+                    title: 'Gagal Memuat Vendor',
+                    text: error.message,
+                    customClass: { popup: 'dark-swal' }
+                });
+            }
+        }
 
         function closeAddStokModal() {
         document.getElementById('add_stok_modal').classList.add('hidden');
@@ -1369,7 +1474,16 @@ let dashboardInterval = null; // Variabel untuk menyimpan timer auto-refresh
 
         async function handleAddStokSubmit(e) {
             e.preventDefault();
+            const selectedVendor = document.getElementById('add_vendor').value;
 
+            if (!selectedVendor || selectedVendor === '__ADD_VENDOR__') {
+                await Swal.fire({
+                    icon: 'warning',
+                    text: 'Pilih vendor terlebih dahulu.',
+                    customClass: { popup: 'dark-swal' }
+                });
+                return;
+            }
             Swal.fire({
                 title: 'Memproses Tambah Stok...',
                 text: 'Generasi ID Sarana & menyimpan ke database',
@@ -1501,7 +1615,10 @@ let dashboardInterval = null; // Variabel untuk menyimpan timer auto-refresh
                 </div>
                 <div>
                     <label class="block text-xs font-bold uppercase text-gray-400 mb-1">Vendor</label>
-                    <select id="add_vendor" required class="w-full bg-gray-900 border border-gray-700 rounded-xl px-3.5 py-2.5 text-xs text-white focus:outline-none focus:border-amber-500 font-bold">
+                    <select id="add_vendor"
+                        required
+                        onchange="handleVendorChange()"
+                        class="w-full bg-gray-900 border border-gray-700 rounded-xl px-3.5 py-2.5 text-xs text-white focus:outline-none focus:border-amber-500 font-bold">
                         <option value="">-- Pilih Vendor --</option>
                         <option value="AUP">AUP</option>
                         <option value="ASN">ASN</option>
@@ -1510,6 +1627,7 @@ let dashboardInterval = null; // Variabel untuk menyimpan timer auto-refresh
                         <option value="MUI">MUI</option>
                         <option value="ABC">ABC</option>
                         <option value="WANMEI">WANMEI</option>
+                        <option value="__ADD_VENDOR__">➕ Tambah Vendor Baru</option>
                     </select>
                 </div>
             </div>

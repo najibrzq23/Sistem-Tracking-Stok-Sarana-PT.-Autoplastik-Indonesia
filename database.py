@@ -113,6 +113,12 @@ class AccountAudit(Base):
     event = Column(String, nullable=False)
     created_at = Column(DateTime, default=now)
 
+class VendorRecord(Base):
+    __tablename__ = "vendors"
+
+    name = Column(String(100), primary_key=True)
+    created_at = Column(DateTime, default=now)
+
 class SyncJob(Base):
     __tablename__ = 'sync_jobs'
     id = Column(Integer, primary_key=True, autoincrement=True)

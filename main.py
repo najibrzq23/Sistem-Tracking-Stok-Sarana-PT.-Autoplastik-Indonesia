@@ -8,6 +8,7 @@ import secrets
 import time
 import logging
 import hmac
+from database import VendorRecord
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, Form, Request, BackgroundTasks, HTTPException
 from fastapi.responses import HTMLResponse, JSONResponse
@@ -141,6 +142,64 @@ def logout(request:Request):
 def config():
     url=os.getenv('GOOGLE_SHEET_URL','').strip()
     return {'google_sheet_url':url if url.startswith('https://docs.google.com/spreadsheets/') else '', 'sheets_enabled':configured()}
+
+DEFAULT_VENDORS = [
+    "AUP",
+    "ASN",
+    "HASURA",
+    "GBU",
+    "MUI",
+    "ABC",
+    "WANMEI",
+]
+def vendor_names(session):
+    names = set(DEFAULT_VENDORS)
+
+    names.update(
+        row[0].strip().upper()
+        for row in session.query(VendorRecord.name).all()
+        if row[0]
+    )
+
+    names.update(
+        row[0].strip().upper()
+        for row in session.query(Sarana.Vendor).distinct().all()
+        if row[0] and row[0].strip() != "-"
+    )
+    extra = sorted(names - set(DEFAULT_VENDORS))
+    return DEFAULT_VENDORS + extra
+
+@app.get("/api/admin/sarana/vendors")
+def list_vendors():
+    with SessionLocal() as session:
+        return {"vendors": vendor_names(session)}
+
+@app.post("/api/admin/sarana/vendors")
+def create_vendor(name: str = Form(...)):
+    name = " ".join(name.strip().upper().split())
+
+    require(
+        bool(re.fullmatch(r"[A-Z0-9][A-Z0-9 .&()/_-]{0,99}", name)),
+        "Nama vendor tidak valid. Maksimal 100 karakter.",
+    )
+
+    with SessionLocal() as session:
+        lock_writes(session)
+
+        require(
+            name not in vendor_names(session),
+            "Vendor sudah tersedia.",
+            409,
+        )
+
+        session.add(VendorRecord(name=name))
+        session.commit()
+
+    return {
+        "status": "success",
+        "name": name,
+        "message": "Vendor berhasil ditambahkan.",
+    }
 
 @app.get('/api/admin/database')
 def database(request:Request, background_tasks:BackgroundTasks, include_master:bool=True):
