@@ -8,7 +8,7 @@ import secrets
 import time
 import logging
 import hmac
-from database import VendorRecord
+from database import VendorRecord, DeletedVendor
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, Form, Request, BackgroundTasks, HTTPException
 from fastapi.responses import HTMLResponse, JSONResponse
@@ -166,8 +166,22 @@ def vendor_names(session):
         for row in session.query(Sarana.Vendor).distinct().all()
         if row[0] and row[0].strip() != "-"
     )
-    extra = sorted(names - set(DEFAULT_VENDORS))
-    return DEFAULT_VENDORS + extra
+
+    deleted = {
+        row[0].strip().upper()
+        for row in session.query(DeletedVendor.name).all()
+    }
+
+    names -= deleted
+
+    defaults = [
+        name for name in DEFAULT_VENDORS
+        if name in names
+    ]
+
+    extras = sorted(names - set(DEFAULT_VENDORS))
+
+    return defaults + extras
 
 @app.get("/api/admin/sarana/vendors")
 def list_vendors():
@@ -192,13 +206,45 @@ def create_vendor(name: str = Form(...)):
             409,
         )
 
-        session.add(VendorRecord(name=name))
+        deleted = session.get(DeletedVendor, name)
+
+        if deleted:
+            session.delete(deleted)
+
+        if not session.get(VendorRecord, name):
+            session.add(VendorRecord(name=name))
+
         session.commit()
 
     return {
         "status": "success",
         "name": name,
         "message": "Vendor berhasil ditambahkan.",
+    }
+@app.post("/api/admin/sarana/vendors/delete")
+def delete_vendor(name: str = Form(...)):
+    name = " ".join(name.strip().upper().split())
+
+    with SessionLocal() as session:
+        lock_writes(session)
+
+        require(
+            name in vendor_names(session),
+            "Vendor tidak ditemukan dalam daftar pilihan.",
+            404,
+        )
+
+        if not session.get(DeletedVendor, name):
+            session.add(DeletedVendor(name=name))
+
+        session.commit()
+
+    return {
+        "status": "success",
+        "message": (
+            f"Vendor {name} dihapus dari pilihan. "
+            "Stok dan log sebelumnya tetap tersimpan."
+        ),
     }
 
 @app.get('/api/admin/database')

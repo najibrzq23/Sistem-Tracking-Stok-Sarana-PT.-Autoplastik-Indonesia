@@ -1447,7 +1447,70 @@ let dashboardInterval = null; // Variabel untuk menyimpan timer auto-refresh
                 });
             }
         }
+        async function deleteSelectedVendor() {
+            const select = document.getElementById('add_vendor');
+            const name = select.value;
 
+            if (!name || name === '__ADD_VENDOR__') {
+                await Swal.fire({
+                    icon: 'info',
+                    text: 'Pilih vendor yang ingin dihapus terlebih dahulu.',
+                    customClass: { popup: 'dark-swal' }
+                });
+                return;
+            }
+
+            const confirmation = await Swal.fire({
+                icon: 'warning',
+                title: 'Hapus Vendor?',
+                text: `Hapus ${name} dari daftar pilihan? Stok dan log yang sudah ada tetap tersimpan.`,
+                showCancelButton: true,
+                confirmButtonText: 'Ya, Hapus',
+                cancelButtonText: 'Batal',
+                confirmButtonColor: '#dc2626',
+                customClass: { popup: 'dark-swal' }
+            });
+
+            if (!confirmation.isConfirmed) return;
+
+            const form = new FormData();
+            form.append('name', name);
+
+            try {
+                const response = await fetch(
+                    '/api/admin/sarana/vendors/delete',
+                    {
+                        method: 'POST',
+                        body: form
+                    }
+                );
+
+                const data = await response.json();
+
+                if (!response.ok) {
+                    throw new Error(
+                        data.message || 'Vendor gagal dihapus.'
+                    );
+                }
+
+                await loadVendorOptions();
+
+                await Swal.fire({
+                    icon: 'success',
+                    title: 'Vendor Dihapus',
+                    text: data.message,
+                    customClass: { popup: 'dark-swal' }
+                });
+
+            } catch (error) {
+                await Swal.fire({
+                    icon: 'error',
+                    title: 'Belum Berhasil',
+                    text: error.message,
+                    customClass: { popup: 'dark-swal' }
+                });
+            }
+        }
         async function openAddStokModal() {
             try {
                 await loadVendorOptions();
@@ -1629,6 +1692,14 @@ let dashboardInterval = null; // Variabel untuk menyimpan timer auto-refresh
                         <option value="WANMEI">WANMEI</option>
                         <option value="__ADD_VENDOR__">➕ Tambah Vendor Baru</option>
                     </select>
+                    <button
+                        type="button"
+                        onclick="deleteSelectedVendor()"
+                        class="mt-2 w-full border border-red-500/30
+                            bg-red-500/10 text-red-400 rounded-lg
+                            px-3 py-2 text-xs font-semibold">
+                        🗑 Hapus Vendor Terpilih
+                    </button>
                 </div>
             </div>
 

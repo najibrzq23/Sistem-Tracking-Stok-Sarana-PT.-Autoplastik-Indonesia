@@ -239,38 +239,70 @@ def import_data():
     }
 
     for row in master:
-        if not isinstance(row, dict):
-            raise ValueError("Baris master tidak valid.")
+        master_fields = (
+            "ID_Sarana",
+            "Nama_Sarana",
+            "No_Sarana",
+            "Vendor",
+            "Status_Saat_Ini",
+        )
 
-        id_sarana = str(row.get("ID_Sarana") or "").strip()
-        name = str(row.get("Nama_Sarana") or "").strip()
-        status = str(row.get("Status_Saat_Ini") or "").strip()
+        for row_number, row in enumerate(master, start=2):
+            if not isinstance(row, dict):
+                raise ValueError(
+                    f"Format baris master ke-{row_number} tidak valid."
+                )
 
-        if (
-            not re.fullmatch(r"[A-Za-z0-9_.-]{1,100}", id_sarana)
-            or id_sarana in seen
-            or not name
-        ):
-            raise ValueError(
-                "Master memiliki ID/nama kosong, "
-                "ID tidak valid, atau ID duplikat."
-            )
+            # Baris benar-benar kosong tidak dianggap stok.
+            if all(
+                str(row.get(field) or "").strip() == ""
+                for field in master_fields
+            ):
+                continue
 
-        if (
-            status not in valid_statuses
-            and not re.fullmatch(r"DELETED_NG \(.+\)", status)
-        ):
-            raise ValueError("Status master tidak valid.")
+            id_sarana = str(row.get("ID_Sarana") or "").strip()
+            name = str(row.get("Nama_Sarana") or "").strip()
+            status = str(row.get("Status_Saat_Ini") or "").strip()
 
-        seen.add(id_sarana)
+            if not id_sarana:
+                raise ValueError(
+                    f"Baris data ke-{row_number}: ID_Sarana kosong, "
+                    "tetapi kolom lain masih berisi data."
+                )
 
-        parsed.append({
-            "ID_Sarana": id_sarana,
-            "Nama_Sarana": name,
-            "No_Sarana": str(row.get("No_Sarana") or ""),
-            "Vendor": str(row.get("Vendor") or "-"),
-            "Status_Saat_Ini": status,
-        })
+            if not re.fullmatch(r"[A-Za-z0-9_.-]{1,100}", id_sarana):
+                raise ValueError(
+                    f"ID tidak valid: {id_sarana!r}. "
+                    "Gunakan huruf, angka, titik, underscore, atau minus."
+                )
+
+            if id_sarana in seen:
+                raise ValueError(
+                    f"ID duplikat di Sheets: {id_sarana}."
+                )
+
+            if not name:
+                raise ValueError(
+                    f"Nama_Sarana kosong pada ID {id_sarana}."
+                )
+
+            if (
+                status not in valid_statuses
+                and not re.fullmatch(r"DELETED_NG \(.+\)", status)
+            ):
+                raise ValueError(
+                    f"Status tidak valid pada ID {id_sarana}: {status!r}."
+                )
+
+            seen.add(id_sarana)
+
+            parsed.append({
+                "ID_Sarana": id_sarana,
+                "Nama_Sarana": name,
+                "No_Sarana": str(row.get("No_Sarana") or ""),
+                "Vendor": str(row.get("Vendor") or "-"),
+                "Status_Saat_Ini": status,
+            })
 
     parsed_logs = []
 
