@@ -459,9 +459,9 @@ def finish_unloading(request:Request, preview_token:str=Form(...)):
 
 @app.post('/api/sheets/drain')
 def drain_sheets():
-    # Dipanggil terpisah dari request scan. Antrean tetap persisten di database.
-    flush_one()
-    return {'status':'success'}
+    # Dipanggil terpisah dari request scan.
+    # Mengembalikan hasil pengiriman antrean yang sebenarnya.
+    return flush_one()
 
 @app.post('/api/sync')
 def sync():

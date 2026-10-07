@@ -56,7 +56,9 @@ def enqueue(session, payload):
 def flush_one():
     """Kirim satu antrean, sesuai urutan."""
     if not configured():
-        return
+        return {
+            "status": "not_configured",
+            "message": "Integrasi Sheets belum dikonfigurasi."}
 
     with SessionLocal() as session:
         lock_writes(session)
@@ -71,8 +73,21 @@ def flush_one():
         # Pengiriman tidak pasti harus ditinjau dahulu.
         if not job or job.state != "pending":
             session.rollback()
-            return
-
+            return {
+                "status": "idle",
+                "message": "Tidak ada antrean yang belum selesai."
+            }
+        if job.state != "pending":
+            result = {
+                "status": "blocked",
+                "job_id": job.id,
+                "job_state": job.state,
+                "message": job.error or (
+                    "Antrean paling awal perlu diperiksa sebelum dilanjutkan."
+                )
+            }
+            session.rollback()
+            return result
         job.state = "sending"
         job.sent_at = now()
 
@@ -123,7 +138,12 @@ def flush_one():
             job.error = message
 
         session.commit()
-
+    return {
+        "status": "success" if state == "done" else "review",
+        "job_id": job_id,
+        "job_state": state,
+        "message": message
+    }
 
 def _sync_revision(session):
     master = [
