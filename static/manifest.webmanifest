@@ -1,7 +1,7 @@
 {
   "id": "/",
-  "name": "Tracking Stok PT Autoplastik Indonesia",
-  "short_name": "Stok PT API",
+  "name": "Sistem Tracking Sarana PT Autoplastik Indonesia",
+  "short_name": "API TRACK",
   "description": "Sistem pelacakan stok sarana PT Autoplastik Indonesia",
   "lang": "id",
   "start_url": "/",
