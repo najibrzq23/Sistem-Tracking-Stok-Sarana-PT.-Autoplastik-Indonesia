@@ -821,7 +821,7 @@ let dashboardInterval = null; // Variabel untuk menyimpan timer auto-refresh
                 logBadge.innerText = `${data.logs.length} Transaksi Terbaru (maks. 500)`;
                 lBody.innerHTML = data.logs.map((l, index) => `
                 <tr class="hover:bg-gray-800/50 transition">
-                    <td class="py-3 px-4 text-gray-500 font-mono">#${index + 1}</td>
+                    <td class="py-3 px-4 text-gray-500 font-mono">#${data.logs.length - index}</td>
                     <td class="py-3 px-4 font-mono text-cyan-400 font-bold">${l.ID_Sarana}</td>
                     <td class="py-3 px-4">
                         <span class="px-2.5 py-1 rounded-md bg-blue-950 text-blue-300 font-semibold text-[11px] border border-blue-900">
