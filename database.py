@@ -75,6 +75,9 @@ class Sarana(Base):
     No_Sarana = Column(String)
     Vendor = Column(String, default='-')
     Status_Saat_Ini = Column(String, default='AT_API')
+    Customer = Column(String(100), default='', nullable=False)
+    Last_Scan_At = Column(DateTime, nullable=True)
+    API_Received_At = Column(DateTime, nullable=True)
 
 class LogScan(Base):
     __tablename__ = 'log_scan'
@@ -83,6 +86,7 @@ class LogScan(Base):
     Alur_Scan = Column(String)
     Vendor = Column(String, default='-')
     Waktu_Scan = Column(DateTime, default=now)
+    Customer = Column(String(100), default='', nullable=False)
 
 class User(Base):
     __tablename__ = 'users'
@@ -93,6 +97,8 @@ class User(Base):
     nama_lengkap = Column(String)
     npk = Column(String)
     jabatan = Column(String)
+    scan_permissions = Column(Text, default='[]', nullable=False)
+    vendor_scope = Column(String(100), default='', nullable=False)
 
 class UnloadingGroup(Base):
     __tablename__ = 'unloading_groups'
@@ -140,12 +146,96 @@ class LoginAttempt(Base):
     count = Column(Integer, default=0)
     window_start = Column(DateTime, default=now)
 
+class CustomerRecord(Base):
+    __tablename__ = 'customers'
+
+    name = Column(String(100), primary_key=True)
+    active = Column(Integer, default=1, nullable=False)
+    created_at = Column(DateTime, default=now)
+
+
+def migrate_tracking_v2(connection):
+    from sqlalchemy import inspect
+
+    additions = {
+        'master_sarana': {
+            'Customer': "VARCHAR(100) NOT NULL DEFAULT ''",
+            'Last_Scan_At': 'TIMESTAMP NULL',
+            'API_Received_At': 'TIMESTAMP NULL',
+        },
+        'log_scan': {
+            'Customer': "VARCHAR(100) NOT NULL DEFAULT ''",
+        },
+        'users': {
+            'scan_permissions': "TEXT NOT NULL DEFAULT '[]'",
+            'vendor_scope': "VARCHAR(100) NOT NULL DEFAULT ''",
+        },
+    }
+
+    added = set()
+
+    for table, columns in additions.items():
+        existing = {
+            column['name']
+            for column in inspect(connection).get_columns(table)
+        }
+
+        for name, definition in columns.items():
+            if name not in existing:
+                connection.execute(text(
+                    f'ALTER TABLE "{table}" '
+                    f'ADD COLUMN "{name}" {definition}'
+                ))
+                added.add((table, name))
+
+    # Isi waktu lama dari riwayat yang memang dapat dikenali.
+    # Tidak membuat tanggal perkiraan jika riwayatnya tidak tersedia.
+    if ('master_sarana', 'Last_Scan_At') in added:
+        scan_prefixes = (
+            'PT API Out',
+            'In Truck → Vendor In',
+            'Vendor Out',
+            'In Truck → PT API In',
+            'RECOVERY (',
+        )
+
+        with Session(bind=connection) as session:
+            units = {
+                unit.ID_Sarana: unit
+                for unit in session.query(Sarana)
+            }
+
+            events = session.query(LogScan).order_by(
+                LogScan.Waktu_Scan,
+                LogScan.id,
+            )
+
+            for event in events:
+                unit = units.get(event.ID_Sarana)
+
+                if not unit or not event.Waktu_Scan:
+                    continue
+
+                label = event.Alur_Scan or ''
+
+                if label.startswith(scan_prefixes):
+                    unit.Last_Scan_At = event.Waktu_Scan
+
+                if unit.Status_Saat_Ini == 'AT_API' and (
+                    label.startswith('TAMBAH STOK')
+                    or 'In Truck → PT API In' in label
+                ):
+                    unit.API_Received_At = event.Waktu_Scan
+
+            session.flush()
+
 def init_db():
     # Lock PostgreSQL juga melindungi inisialisasi beberapa cold start sekaligus.
     with engine.begin() as connection:
         if IS_POSTGRES:
             connection.execute(text('SELECT pg_advisory_xact_lock(530050)'))
         Base.metadata.create_all(connection)
+        migrate_tracking_v2(connection)
         with Session(bind=connection) as session:
             # Database awal harus baru; akun SQLite lama tidak diimpor diam-diam.
             if not session.query(User).first():

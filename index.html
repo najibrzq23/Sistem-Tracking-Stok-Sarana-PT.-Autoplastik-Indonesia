@@ -224,6 +224,18 @@ button:disabled { opacity: .55; cursor: not-allowed; }
                     <div class="text-[10px] font-extrabold uppercase tracking-wider text-gray-500 px-3 mt-5 mb-2">Station PT API</div>
                     <button id="nav_api_out" onclick="switchMenu('api_out')" class="sidebar-btn w-full flex items-center gap-3 px-3.5 py-3 rounded-xl text-xs font-bold text-gray-400 border border-transparent text-left">📤 PT API - Outbound</button>
                     <button id="nav_api_in" onclick="switchMenu('api_in')" class="sidebar-btn w-full flex items-center gap-3 px-3.5 py-3 rounded-xl text-xs font-bold text-gray-400 border border-transparent text-left">📥 PT API - Inbound</button>
+                    <button
+                        id="nav_customer_out"
+                        onclick="switchMenu('customer_out')"
+                        class="sidebar-btn w-full text-left px-3.5 py-3 text-xs font-bold text-gray-400 rounded-xl">
+                        📤 PT API → Customer
+                    </button>
+                    <button
+                        id="nav_customer_in"
+                        onclick="switchMenu('customer_in')"
+                        class="sidebar-btn w-full text-left px-3.5 py-3 text-xs font-bold text-gray-400 rounded-xl">
+                        📥 Customer → PT API
+                    </button>
 
                     <div class="text-[10px] font-extrabold uppercase tracking-wider text-gray-500 px-3 mt-5 mb-2">Station L2 Vendor</div>
                     <button id="nav_vendor_in" onclick="switchMenu('vendor_in')" class="sidebar-btn w-full flex items-center gap-3 px-3.5 py-3 rounded-xl text-xs font-bold text-gray-400 border border-transparent text-left">📥 Vendor L2 - Inbound</button>
@@ -292,7 +304,7 @@ button:disabled { opacity: .55; cursor: not-allowed; }
                                         <th class="py-3.5 px-4 text-center">Total QTY</th>
                                         <th class="py-3.5 px-4 text-center">PT API</th>
                                         <th class="py-3.5 px-4 text-center">Truck</th>
-                                        <th class="py-3.5 px-4 text-center">L2 Vendor</th>
+                                        <th class="py-3.5 px-4 text-center">Vendor/Customer</th>
                                         <th class="py-3.5 px-6 text-center">Status</th>
                                     </tr>
                                 </thead>
@@ -365,6 +377,22 @@ button:disabled { opacity: .55; cursor: not-allowed; }
                         <div class="lg:col-span-7 flex flex-col justify-between space-y-4">
                             <div>
                                 <label class="block text-xs font-bold uppercase text-gray-400 mb-2">Scan / Input Barcode ID Sarana</label>
+                                <div id="station_customer_box" class="hidden mb-4">
+                                    <label class="block text-sm font-bold text-gray-300 mb-2">
+                                        Customer tujuan
+                                    </label>
+                                    <select
+                                        id="station_customer"
+                                        class="w-full bg-gray-900 border border-gray-700 rounded-xl px-4 py-3 text-white">
+                                        <option value="">
+                                            -- Pilih customer sebelum scan --
+                                        </option>
+                                    </select>
+                                    <p class="text-xs text-gray-400 mt-2">
+                                        Tujuan berlaku untuk scan berikutnya.
+                                        Ganti pilihan jika tujuan berbeda.
+                                    </p>
+                                </div>
                                 <input type="text" id="station_id_input" class="w-full bg-gray-900 border border-gray-700 rounded-xl px-4 py-3.5 text-white font-mono text-lg" placeholder="Contoh: BOX-A-001">
                             </div>
                             <div class="space-y-3 pt-4">
@@ -395,9 +423,19 @@ button:disabled { opacity: .55; cursor: not-allowed; }
                         <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
                             <h3 class="text-sm font-bold text-white uppercase tracking-wider flex items-center gap-2">List Master Sarana</h3>
                             <div class="flex items-center gap-2">
-                                <button onclick="openDeleteNgModal()" class="bg-red-600 hover:bg-red-500 text-white font-bold py-2 px-3.5 rounded-xl text-xs transition shadow-md flex items-center gap-1.5">
+                                <button
+                                    onclick="openDeleteNgModal()"
+                                    class="bg-red-600 hover:bg-red-500 text-white font-bold py-2 px-3.5 rounded-xl text-xs transition shadow-md">
                                     🗑️ Hapus Stok (NG)
-                                <button onclick="openAddStokModal()" class="bg-amber-600 hover:bg-amber-500 text-white font-bold py-2 px-3.5 rounded-xl text-xs transition shadow-md flex items-center gap-1.5">
+                                </button>
+                                <button
+                                    onclick="openCustomerList()"
+                                    class="bg-cyan-700 hover:bg-cyan-600 text-white font-bold py-2 px-3.5 rounded-xl text-xs transition shadow-md">
+                                    List Customer
+                                </button>
+                                <button
+                                    onclick="openAddStokModal()"
+                                    class="bg-amber-600 hover:bg-amber-500 text-white font-bold py-2 px-3.5 rounded-xl text-xs transition shadow-md">
                                     ➕ Tambah Stok Sarana
                                 </button>
                                 <button onclick="syncAndReloadData()" class="bg-blue-600 hover:bg-blue-500 text-white font-bold py-2 px-3.5 rounded-xl text-xs transition shadow-md flex items-center gap-1.5">
@@ -408,16 +446,35 @@ button:disabled { opacity: .55; cursor: not-allowed; }
                                 </a>
                             </div>
                         </div>
-
+                        <label class="block text-xs text-gray-400 mb-2">
+                            Urutkan master
+                        </label>
+                        <select
+                            id="master_sort"
+                            onchange="renderMasterRows()"
+                            class="bg-gray-900 border border-gray-700 rounded-xl p-3 text-sm mb-3">
+                            <option value="id">ID Sarana</option>
+                            <option value="fifo">FIFO: paling lama di PT API</option>
+                            <option value="idle">Paling lama tidak scan</option>
+                        </select>
+                        <p class="text-xs text-gray-400 mb-3">
+                            FIFO memprioritaskan stok AT_API.
+                            Lama tidak scan merupakan petunjuk pemeriksaan fisik,
+                            bukan bukti kehilangan.
+                        </p>
                         <div class="overflow-x-auto overflow-y-auto max-h-[400px] rounded-xl border border-gray-800 bg-gray-900/30">
                             <table class="w-full text-left border-collapse text-xs">
                                 <thead class="sticky top-0 bg-gray-900 z-10">
                                     <tr class="text-gray-400 uppercase tracking-wider border-b border-gray-800">
-                                        <th class="py-3 px-4 font-bold">ID Sarana</th>
-                                        <th class="py-3 px-4 font-bold">Nama Sarana</th>
-                                        <th class="py-3 px-4 font-bold">No Sarana</th>
-                                        <th class="py-3 px-4 text-center font-bold">Vendor</th>
-                                        <th class="py-3 px-4 text-center font-bold">Status Saat Ini</th>
+                                        <th class="p-3">ID Sarana</th>
+                                        <th class="p-3">Nama Sarana</th>
+                                        <th class="p-3">No Sarana</th>
+                                        <th class="p-3">Vendor Asal</th>
+                                        <th class="p-3">Vendor/Customer Saat Ini</th>
+                                        <th class="p-3">Status</th>
+                                        <th class="p-3">Scan Terakhir</th>
+                                        <th class="p-3">Sejak Scan</th>
+                                        <th class="p-3">Lama di API</th>
                                     </tr>
                                 </thead>
                                 <tbody id="db_master_body" class="divide-y divide-gray-800/80 font-medium"></tbody>
@@ -500,6 +557,7 @@ button:disabled { opacity: .55; cursor: not-allowed; }
                                 <input type="password" id="reg_password" required minlength="12" maxlength="256" class="w-full bg-gray-900 border border-gray-700 rounded-xl px-3.5 py-2.5 text-xs text-white focus:outline-none focus:border-amber-500" placeholder="••••••••">
                             </div>
                             <button type="submit" class="w-full bg-amber-600 hover:bg-amber-500 text-white font-bold py-3 rounded-xl shadow-lg shadow-amber-600/20 transition text-xs">
+                                <div id="reg_access_fields"></div>
                                 💾 Simpan & Registrasi Akun
                             </button>
                         </form>
@@ -616,8 +674,11 @@ button:disabled { opacity: .55; cursor: not-allowed; }
             'api_out': { badge: 'PT API ➔ TRUK', badgeClass: 'bg-blue-500/10 text-blue-400 border-blue-500/20', title: 'Outbound Pengiriman PT API', desc: 'Scan barang keluar PT API', alur: '1', btnClass: 'bg-blue-600 hover:bg-blue-500' },
             'api_in': { badge: 'TRUK BALIK ➔ PT API', badgeClass: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20', title: 'Inbound Penerimaan PT API', desc: 'Scan barang kembali ke PT API', alur: '4', btnClass: 'bg-emerald-600 hover:bg-emerald-500' },
             'vendor_in': { badge: 'TRUK ➔ L2 VENDOR', badgeClass: 'bg-cyan-500/10 text-cyan-400 border-cyan-500/20', title: 'Inbound Unloading Vendor', desc: 'Scan barang diterima L2 Vendor', alur: '2', btnClass: 'bg-cyan-600 hover:bg-cyan-500', showUnloadingBtn: true },
-            'vendor_out': { badge: 'L2 VENDOR ➔ TRUK BALIK', badgeClass: 'bg-amber-500/10 text-amber-400 border-amber-500/20', title: 'Outbound Return Vendor', desc: 'Scan barang kembali dari L2 Vendor', alur: '3', btnClass: 'bg-amber-600 hover:bg-amber-500' }
-        };
+            'vendor_out': { badge: 'L2 VENDOR ➔ TRUK BALIK', badgeClass: 'bg-amber-500/10 text-amber-400 border-amber-500/20', title: 'Outbound Return Vendor', desc: 'Scan barang kembali dari L2 Vendor', alur: '3', btnClass: 'bg-amber-600 hover:bg-amber-500' },
+            'customer_out': {badge: 'PT API → CUSTOMER', title: 'Pengiriman ke Customer', desc: 'Pilih customer tujuan, lalu scan unit yang keluar.', alur: '5', btnClass: 'bg-violet-600 hover:bg-violet-500'},
+
+            'customer_in': { badge: 'CUSTOMER → PT API', title: 'Penerimaan dari Customer', desc: 'Scan setelah barang diterima fisik di PT API.', alur: '6', btnClass: 'bg-teal-600 hover:bg-teal-500'},
+            };
 
         function toggleSidebar() {
             const sidebar = document.getElementById('sidebar');
@@ -688,19 +749,33 @@ button:disabled { opacity: .55; cursor: not-allowed; }
         window.addEventListener('DOMContentLoaded', restoreSession);
 
         function setupPermissions() {
-            document.getElementById('user_display_name').innerText = currentUser.nama_lengkap;
-            document.getElementById('user_display_role').innerText = `ROLE: ${currentUser.role}`;
+            document.getElementById('user_display_name').textContent =
+                currentUser.nama_lengkap;
 
-            if (currentUser.role === 'guest') {
-                document.getElementById('section_station').classList.add('hidden');
-                document.getElementById('section_admin').classList.add('hidden');
-            } else if (currentUser.role === 'member') {
-                document.getElementById('section_station').classList.remove('hidden');
-                document.getElementById('section_admin').classList.add('hidden');
-            } else if (currentUser.role === 'admin') {
-                document.getElementById('section_station').classList.remove('hidden');
-                document.getElementById('section_admin').classList.remove('hidden');
-            }
+            document.getElementById('user_display_role').textContent =
+                'ROLE: ' + currentUser.role;
+
+            const permissions = currentUser.scan_permissions || [];
+
+            document.getElementById('section_admin').classList.toggle(
+                'hidden',
+                currentUser.role !== 'admin'
+            );
+
+            document.getElementById('section_station').classList.toggle(
+                'hidden',
+                !permissions.length
+            );
+
+            Object.entries(menuConfigs).forEach(([key, cfg]) => {
+                if (cfg.alur) {
+                    document.getElementById('nav_' + key)
+                        ?.classList.toggle(
+                            'hidden',
+                            !permissions.includes(cfg.alur)
+                        );
+                }
+            });
         }
 
         async function logout() {
@@ -708,10 +783,27 @@ button:disabled { opacity: .55; cursor: not-allowed; }
             if (response.ok || response.status === 401) location.reload();
             else Swal.fire({icon:'error', text:'Logout gagal. Coba lagi.'});
         }
-let dashboardInterval = null; // Variabel untuk menyimpan timer auto-refresh
+        let dashboardInterval = null; // Variabel untuk menyimpan timer auto-refresh
 
         let stationGeneration = 0;
         async function switchMenu(menuKey) {
+            const selected = menuConfigs[menuKey];
+            if (
+                selected?.alur &&
+                !(currentUser?.scan_permissions || []).includes(selected.alur)
+            ) {
+                await Swal.fire({
+                    icon: 'error',
+                    text: 'Akun tidak memiliki izin menu ini.'
+                });
+                return;
+            }
+            if (
+                ['database', 'users', 'qrcode'].includes(menuKey) &&
+                currentUser?.role !== 'admin'
+            ) {
+                return;
+            }
             const generation = ++stationGeneration;
             document.body.classList.toggle('overview-mode', menuKey === 'overview');
             const sidebar = document.getElementById('sidebar');
@@ -763,6 +855,27 @@ let dashboardInterval = null; // Variabel untuk menyimpan timer auto-refresh
                 document.getElementById('station_desc').innerText = cfg.desc;
                 document.getElementById('station_submit_btn').className = `w-full text-white font-bold py-3.5 px-6 rounded-xl transition text-sm ${cfg.btnClass}`;
                 document.getElementById('btn_finish_unloading').classList.toggle('hidden', !cfg.showUnloadingBtn);
+                document.getElementById('station_customer_box')
+                    .classList.toggle('hidden', cfg.alur !== '5');
+                if (cfg.alur === '5') {
+                    try {
+                        const data = await trackingRequest('/api/customers');
+                        if (generation !== stationGeneration) return;
+                        document.getElementById('station_customer')
+                            .replaceChildren(
+                                new Option(
+                                    '-- Pilih customer sebelum scan --',
+                                    ''
+                                ),
+                                ...data.customers.map(
+                                    name => new Option(name, name)
+                                )
+                            );
+                    } catch (error) {
+                        setScanFeedback(error.message, 'error');
+                        return;
+                    }
+                }
                 initStationScanner();
             }
         }
@@ -837,40 +950,387 @@ let dashboardInterval = null; // Variabel untuk menyimpan timer auto-refresh
                             ${l.Alur_Scan}
                         </span>
                     </td>
-                    <td class="py-3 px-4 font-bold text-amber-400">${l.Vendor || '-'}</td>
+                    <td class="py-3 px-4 font-bold text-amber-400">${l.Customer || l.Vendor || '-'}</td>
                     <td class="py-3 px-4 text-gray-400 font-mono text-[11px]">${l.Waktu_Scan}</td>
                 </tr>
             `).join('');}}
             catch(e) {
                 console.error("Error load audit logs:", e); throw e;}}
 
+        const scanAccessLabels = {
+            '1': 'PT API ke Vendor',
+            '2': 'Vendor Inbound',
+            '3': 'Vendor Outbound',
+            '4': 'PT API dari Vendor',
+            '5': 'PT API ke Customer',
+            '6': 'PT API dari Customer'
+        };
+
+        let userAccessRows = new Map();
+        let masterRows = [];
+
+        async function trackingRequest(url, options = {}) {
+            const response = await fetch(url, options);
+            const data = await response.json();
+
+            if (!response.ok) {
+                throw new Error(data.message || 'Permintaan gagal.');
+            }
+
+            return data;
+        }
+
+        function accessFields(prefix, permissions, scope, vendors) {
+            return `
+                <p class="text-xs text-gray-400 mb-3">
+                    Khusus operator: pilih bagian scan.
+                    Izin vendor dan PT API harus memakai akun terpisah.
+                </p>
+
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    ${Object.entries(scanAccessLabels).map(([key, label]) => `
+                        <label class="flex items-center gap-2 text-sm text-gray-200">
+                            <input
+                                type="checkbox"
+                                name="${prefix}_perm"
+                                value="${key}"
+                                ${permissions.includes(key) ? 'checked' : ''}>
+                            ${label}
+                        </label>
+                    `).join('')}
+                </div>
+
+                <label class="block text-xs text-gray-400 mt-4 mb-2">
+                    Vendor akun (wajib untuk izin vendor)
+                </label>
+
+                <select
+                    id="${prefix}_vendor"
+                    class="w-full bg-gray-900 border border-gray-700 rounded-xl p-3 text-white">
+                    <option value="">-- Pilih Vendor --</option>
+
+                    ${vendors.map(name => `
+                        <option
+                            value="${safeText(name)}"
+                            ${name === scope ? 'selected' : ''}>
+                            ${safeText(name)}
+                        </option>
+                    `).join('')}
+                </select>
+            `;
+        }
+
+        async function prepareRegistrationAccess() {
+            const box = document.getElementById('reg_access_fields');
+
+            if (box.dataset.ready) return;
+
+            const data = await trackingRequest(
+                '/api/admin/sarana/vendors'
+            );
+
+            box.innerHTML = accessFields(
+                'reg',
+                [],
+                '',
+                data.vendors
+            );
+
+            box.dataset.ready = '1';
+        }
+
+        async function editScanAccess(id) {
+            const user = userAccessRows.get(id);
+
+            if (!user || user.role !== 'member') return;
+
+            try {
+                const data = await trackingRequest(
+                    '/api/admin/sarana/vendors'
+                );
+
+                const answer = await Swal.fire({
+                    title: 'Izin Scan: ' + user.username,
+
+                    html: accessFields(
+                        'edit',
+                        user.scan_permissions || [],
+                        user.vendor_scope || '',
+                        data.vendors
+                    ),
+
+                    showCancelButton: true,
+                    confirmButtonText: 'Simpan Izin',
+                    cancelButtonText: 'Batal',
+                    customClass: { popup: 'dark-swal' },
+
+                    preConfirm: async () => {
+                        const form = new FormData();
+
+                        form.append(
+                            'scan_permissions',
+                            JSON.stringify(
+                                Array.from(
+                                    document.querySelectorAll(
+                                        'input[name="edit_perm"]:checked'
+                                    ),
+                                    element => element.value
+                                )
+                            )
+                        );
+
+                        form.append(
+                            'vendor_scope',
+                            document.getElementById('edit_vendor').value
+                        );
+
+                        try {
+                            return await trackingRequest(
+                                '/api/admin/users/access/' + id,
+                                { method: 'POST', body: form }
+                            );
+                        } catch (error) {
+                            Swal.showValidationMessage(error.message);
+                            return false;
+                        }
+                    }
+                });
+
+                if (answer.isConfirmed) {
+                    await loadAdminUsers();
+
+                    await Swal.fire({
+                        icon: 'success',
+                        text: answer.value.message
+                    });
+                }
+            } catch (error) {
+                await Swal.fire({
+                    icon: 'error',
+                    text: error.message
+                });
+            }
+        }
+
+        async function openCustomerList() {
+            try {
+                const data = await trackingRequest('/api/customers');
+
+                const answer = await Swal.fire({
+                    title: 'List Customer',
+
+                    html: `
+                        <label class="block text-left text-sm mb-2">
+                            Tambah customer
+                        </label>
+
+                        <input
+                            id="new_customer_name"
+                            class="swal2-input"
+                            maxlength="100"
+                            placeholder="Contoh: HYUNDAI">
+
+                        <label class="block text-left text-sm mt-4 mb-2">
+                            Customer terdaftar
+                        </label>
+
+                        <select
+                            id="delete_customer_name"
+                            class="swal2-select">
+                            <option value="">-- Pilih Customer --</option>
+
+                            ${data.customers.map(name => `
+                                <option value="${safeText(name)}">
+                                    ${safeText(name)}
+                                </option>
+                            `).join('')}
+                        </select>
+                    `,
+
+                    showDenyButton: true,
+                    showCancelButton: true,
+                    confirmButtonText: 'Tambah',
+                    denyButtonText: 'Hapus Pilihan',
+                    cancelButtonText: 'Tutup',
+                    customClass: { popup: 'dark-swal' },
+
+                    preConfirm: async () => {
+                        const form = new FormData();
+
+                        form.append(
+                            'name',
+                            document.getElementById('new_customer_name').value
+                        );
+
+                        try {
+                            return await trackingRequest(
+                                '/api/admin/sarana/customers',
+                                { method: 'POST', body: form }
+                            );
+                        } catch (error) {
+                            Swal.showValidationMessage(error.message);
+                            return false;
+                        }
+                    },
+
+                    preDeny: () => {
+                        const name = document.getElementById(
+                            'delete_customer_name'
+                        ).value;
+
+                        if (!name) {
+                            Swal.showValidationMessage(
+                                'Pilih customer dahulu.'
+                            );
+                            return false;
+                        }
+
+                        return name;
+                    }
+                });
+
+                if (answer.isConfirmed) {
+                    await Swal.fire({
+                        icon: 'success',
+                        text: answer.value.message
+                    });
+                }
+
+                if (answer.isDenied) {
+                    const yes = await Swal.fire({
+                        icon: 'warning',
+                        text: 'Hapus ' + answer.value + ' dari pilihan?',
+                        showCancelButton: true
+                    });
+
+                    if (!yes.isConfirmed) return;
+
+                    const form = new FormData();
+                    form.append('name', answer.value);
+
+                    const result = await trackingRequest(
+                        '/api/admin/sarana/customers/delete',
+                        { method: 'POST', body: form }
+                    );
+
+                    await Swal.fire({
+                        icon: 'success',
+                        text: result.message
+                    });
+                }
+            } catch (error) {
+                await Swal.fire({
+                    icon: 'error',
+                    text: error.message
+                });
+            }
+        }
+
+        function renderMasterRows() {
+            const mode = document.getElementById('master_sort').value;
+            const rows = [...masterRows];
+
+            if (mode === 'fifo') {
+                rows.sort((a, b) => {
+                    const aAPI = a.Status_Saat_Ini === 'AT_API';
+                    const bAPI = b.Status_Saat_Ini === 'AT_API';
+
+                    return (
+                        Number(bAPI) - Number(aAPI)
+                        || (a.API_Received_At || '9999').localeCompare(
+                            b.API_Received_At || '9999'
+                        )
+                    );
+                });
+            }
+
+            if (mode === 'idle') {
+                rows.sort(
+                    (a, b) =>
+                        (b.Days_Since_Scan ?? -1)
+                        - (a.Days_Since_Scan ?? -1)
+                );
+            }
+
+            document.getElementById('db_master_body').innerHTML =
+                rows.length
+                    ? rows.map(m => `
+                        <tr class="hover:bg-gray-800/50">
+                            <td class="py-3 px-4 font-mono text-blue-400">
+                                ${m.ID_Sarana}
+                            </td>
+                            <td class="py-3 px-4">${m.Nama_Sarana}</td>
+                            <td class="py-3 px-4">${m.No_Sarana || '-'}</td>
+                            <td class="py-3 px-4">${m.Vendor || '-'}</td>
+
+                            <td class="py-3 px-4 text-cyan-300">
+                                ${m.Lokasi_Mitra || '-'}
+                            </td>
+
+                            <td class="py-3 px-4 font-mono">
+                                ${m.Status_Saat_Ini}
+                            </td>
+
+                            <td class="py-3 px-4">
+                                ${m.Last_Scan_At || 'Belum ada riwayat scan'}
+                            </td>
+
+                            <td class="py-3 px-4">
+                                ${m.Days_Since_Scan == null
+                                    ? '-'
+                                    : m.Days_Since_Scan + ' hari'}
+                            </td>
+
+                            <td class="py-3 px-4">
+                                ${m.Days_At_API == null
+                                    ? '-'
+                                    : m.Days_At_API + ' hari'}
+
+                                <small class="block text-gray-500">
+                                    ${m.Status_Saat_Ini === 'AT_API'
+                                        ? (
+                                            m.API_Received_At
+                                            || 'Waktu masuk belum diketahui'
+                                        )
+                                        : ''}
+                                </small>
+                            </td>
+                        </tr>
+                    `).join('')
+                    : `
+                        <tr>
+                            <td colspan="9" class="p-4 text-center">
+                                Belum ada stok.
+                            </td>
+                        </tr>
+                    `;
+        }
+
         async function loadAdminMaster() {
             try {
-                const res = await fetch('/api/admin/database');
-                const data = await res.json();
-                const mBody = document.getElementById('db_master_body');
-            if (!data.master || data.master.length === 0) {
-                mBody.innerHTML = `<tr><td colspan="5" class="py-4 text-center text-gray-500">Belum ada data master. Klik Sync!</td></tr>`;}
-            else {
-                mBody.innerHTML = data.master.map(m => `
-                    <tr class="hover:bg-gray-800/50 transition">
-                        <td class="py-3 px-4 font-mono font-bold text-blue-400">${m.ID_Sarana}</td>
-                        <td class="py-3 px-4 font-semibold text-white">${m.Nama_Sarana}</td>
-                        <td class="py-3 px-4 text-gray-300">${m.No_Sarana || '-'}</td>
-                        <td class="py-3 px-4 text-amber-400 font-bold">${m.Vendor || '-'}</td>
-                        <td class="py-3 px-4 text-center">
-                            <span class="px-2.5 py-1 rounded-md bg-gray-800 text-amber-400 font-mono text-[11px] font-bold border border-gray-700">${m.Status_Saat_Ini}</span>
-                        </td>
-                    </tr>
-                `).join('');}}
-            catch(e) {
-                console.error("Error load master:", e);}}
+                const data = await trackingRequest(
+                    '/api/admin/database'
+                );
 
+                masterRows = data.master || [];
+                renderMasterRows();
+
+            } catch (error) {
+                await Swal.fire({
+                    icon: 'error',
+                    text: error.message
+                });
+            }
+        }
         async function loadAdminUsers() {
             try {
                 const res = await fetch('/api/admin/users');
                 const data = await res.json();
-                
+                if (!res.ok) throw new Error(data.message);
+                userAccessRows = new Map(
+                    data.users.map(user => [user.id, user])
+                );
+                await prepareRegistrationAccess();
                 const uBody = document.getElementById('db_users_body');
                 const userBadge = document.getElementById('total_user_badge');
 
@@ -896,7 +1356,20 @@ let dashboardInterval = null; // Variabel untuk menyimpan timer auto-refresh
                                 
                                 <td class="py-3 px-3 text-gray-300">${u.jabatan}</td>
                                 <td class="py-3 px-3 text-center">${roleBadge}</td>
-                                <td class="py-3 px-3 text-center"><div class="flex flex-wrap gap-2 justify-center"><button onclick="resetUserPassword(${u.id}, '${u.username}')" class="bg-blue-500/10 hover:bg-blue-500/20 text-blue-300 border border-blue-500/30 px-3 py-2 rounded-lg text-xs font-bold">🔑 Reset Password</button>${actionBtn}</div></td>
+                                <td class="py-3 px-3 text-center">
+                                    <div class="flex flex-wrap gap-2 justify-center"> 
+                                        <button onclick="resetUserPassword(${u.id}, '${u.username}')" class="bg-blue-500/10 hover:bg-blue-500/20 text-blue-300 border border-blue-500/30 px-3 py-2 rounded-lg text-xs font-bold">
+                                            🔑 Reset Password
+                                        </button>
+                                        ${u.role === 'member' ? `
+                                            <button onclick="editScanAccess(${u.id})"
+                                                class="bg-cyan-900 text-cyan-200 px-3 py-2 rounded-lg text-xs">
+                                                Izin Scan
+                                            </button>
+                                        ` : ''}
+                                        ${actionBtn}
+                                    </div>
+                                </td>
                             </tr>
                         `;
                     }).join('');
@@ -915,10 +1388,10 @@ let dashboardInterval = null; // Variabel untuk menyimpan timer auto-refresh
             formData.append('username', document.getElementById('reg_username').value);
             formData.append('role', document.getElementById('reg_role').value);
             formData.append('password', document.getElementById('reg_password').value);
-
+            formData.append('scan_permissions', JSON.stringify(Array.from(document.querySelectorAll('input[name="reg_perm"]:checked'), element => element.value)));
+            formData.append('vendor_scope', document.getElementById('reg_vendor')?.value || '');
             const res = await fetch('/api/admin/users/create', { method: 'POST', body: formData });
             const data = await res.json();
-
             if (res.ok) {
                 Swal.fire({ icon: 'success', title: 'Berhasil', text: data.message, customClass: { popup: 'dark-swal' } });
                 document.getElementById('reg_nama').value = '';
@@ -1246,12 +1719,23 @@ let dashboardInterval = null; // Variabel untuk menyimpan timer auto-refresh
         async function submitCurrentStation(cameraCode=null) {
             const id_sarana = (typeof cameraCode === 'string' ? cameraCode : document.getElementById('station_id_input').value).trim();
             if (!id_sarana || scanRequestBusy || !currentUser) return;
+            const customer = currentAlurVal === '5'
+                ? document.getElementById('station_customer').value
+                : '';
+
+            if (currentAlurVal === '5' && !customer) {
+                setScanFeedback(
+                    'Pilih customer tujuan sebelum scan.',
+                    'error'
+                );
+                return;
+            }
             scanRequestBusy = true; isScanningLocked = true;
             const alur = currentAlurVal;
             const button = document.getElementById('station_submit_btn');
             button.disabled = true; button.textContent = 'Mengirim scan…';
             setScanFeedback('Mengirim ' + id_sarana + '…','sending');
-            const form = new FormData(); form.append('id_sarana',id_sarana); form.append('alur',alur);
+            const form = new FormData(); form.append('id_sarana',id_sarana); form.append('alur',alur); form.append('customer', customer);
             try {
                 const response = await fetch('/api/scan',{method:'POST',body:form});
                 const result = await response.json();
@@ -1301,7 +1785,15 @@ let dashboardInterval = null; // Variabel untuk menyimpan timer auto-refresh
                             <td class="py-3.5 px-4 text-center text-gray-200 font-bold">${item.Total_QTY}</td>
                             <td class="py-3.5 px-4 text-center text-blue-400 font-bold">${item.PT_API}</td>
                             <td class="py-3.5 px-4 text-center text-amber-400 font-bold">${item.Truck}</td>
-                            <td class="py-3.5 px-4 text-center text-cyan-400 font-bold">${item.L2_Vendor}</td>
+                            <td class="py-3.5 px-4 text-center text-cyan-400 font-bold">
+                                ${item.L2_Vendor}
+
+                                <small class="block text-gray-400 mt-1">
+                                    ${(item.Mitra || []).map(
+                                        mitra => `${mitra.nama}: ${mitra.qty}`
+                                    ).join('<br>')}
+                                </small>
+                            </td>
                             <td class="py-3.5 px-6 text-center">${statusBadge}</td>
                         </tr>
                     `;

@@ -8,7 +8,7 @@ import secrets
 import time
 import logging
 import hmac
-from database import VendorRecord, DeletedVendor
+from database import (VendorRecord, DeletedVendor, CustomerRecord, LOCAL_TRIAL,)
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, Form, Request, BackgroundTasks, HTTPException
 from fastapi.responses import HTMLResponse, JSONResponse
@@ -87,12 +87,264 @@ def require(condition, message, code=400):
     if not condition:
         raise HTTPException(code, message)
 
-def public_user(u):
-    return {'username':u.username,'nama_lengkap':u.nama_lengkap,'role':u.role}
+SCAN_LABELS = {
+    '1': 'PT API ke Vendor',
+    '2': 'Vendor Inbound',
+    '3': 'Vendor Outbound',
+    '4': 'PT API dari Vendor',
+    '5': 'PT API ke Customer',
+    '6': 'PT API dari Customer',
+}
 
-def log_event(session, unit, event, actor):
-    session.add(LogScan(ID_Sarana=unit.ID_Sarana, Vendor=unit.Vendor or '-',
-                        Alur_Scan=f'{event} | Oleh: {actor}', Waktu_Scan=now()))
+
+def allowed_scans(user):
+    if user.role == 'admin':
+        return list(SCAN_LABELS)
+
+    if user.role != 'member':
+        return []
+
+    try:
+        values = json.loads(user.scan_permissions or '[]')
+    except (TypeError, ValueError):
+        return []
+
+    if not isinstance(values, list):
+        return []
+
+    return [
+        key for key in SCAN_LABELS
+        if key in values
+    ]
+
+
+def public_user(u):
+    return {
+        'username': u.username,
+        'nama_lengkap': u.nama_lengkap,
+        'role': u.role,
+        'scan_permissions': allowed_scans(u),
+        'vendor_scope': u.vendor_scope or '',
+    }
+
+
+def require_scan_access(session, request, alur, vendor=None):
+    user = session.get(
+        User,
+        request.session.get('user_id'),
+    )
+
+    require(
+        user is not None,
+        'Silakan login kembali.',
+        401,
+    )
+
+    require(
+        alur in allowed_scans(user),
+        'Akun tidak memiliki izin scan bagian ini.',
+        403,
+    )
+
+    if user.role != 'admin' and alur in ('2', '3'):
+        scope = (user.vendor_scope or '').strip().upper()
+
+        require(
+            bool(scope),
+            'Admin belum menetapkan vendor akun ini.',
+            403,
+        )
+
+        if vendor is not None:
+            require(
+                scope == vendor.strip().upper(),
+                'Sarana bukan milik vendor akun ini.',
+                403,
+            )
+
+    return user
+
+
+def validate_access(
+    session,
+    role,
+    raw_permissions,
+    vendor_scope,
+):
+    require(
+        role in ('admin', 'member', 'guest'),
+        'Role tidak valid.',
+    )
+
+    try:
+        values = json.loads(raw_permissions)
+    except (TypeError, ValueError):
+        raise HTTPException(
+            400,
+            'Format izin scan tidak valid.',
+        )
+
+    require(
+        isinstance(values, list)
+        and all(
+            isinstance(value, str)
+            and value in SCAN_LABELS
+            for value in values
+        ),
+        'Pilihan izin scan tidak valid.',
+    )
+
+    values = (
+        sorted(set(values))
+        if role == 'member'
+        else []
+    )
+
+    scope = ' '.join(
+        vendor_scope.strip().upper().split()
+    )
+
+    if role == 'member':
+        require(
+            bool(values),
+            'Pilih minimal satu izin scan untuk operator.',
+        )
+
+        vendor_access = bool(
+            set(values) & {'2', '3'}
+        )
+
+        require(
+            not (
+                vendor_access
+                and set(values) & {'1', '4', '5', '6'}
+            ),
+            'Pisahkan akun vendor dan akun operator PT API.',
+        )
+
+        if vendor_access:
+            require(
+                scope in vendor_names(session),
+                'Pilih vendor yang tersedia.',
+            )
+        else:
+            scope = ''
+
+    else:
+        scope = ''
+
+    return json.dumps(values), scope
+
+
+def log_event(
+    session,
+    unit,
+    event,
+    actor,
+    customer=None,
+):
+    log = LogScan(
+        ID_Sarana=unit.ID_Sarana,
+        Vendor=unit.Vendor or '-',
+        Customer=(
+            unit.Customer
+            if customer is None
+            else customer
+        ),
+        Alur_Scan=f'{event} | Oleh: {actor}',
+        Waktu_Scan=now(),
+    )
+
+    session.add(log)
+    return log
+
+
+def record_status_change(
+    session,
+    unit,
+    event,
+    actor,
+    customer=None,
+    previous=None,
+):
+    log = log_event(
+        session,
+        unit,
+        event,
+        actor,
+        customer,
+    )
+
+    def stamp(value):
+        return (
+            value.strftime('%Y-%m-%d %H:%M:%S')
+            if value
+            else ''
+        )
+
+    enqueue(session, {
+        'schema': 'tracking_v2',
+        'action': (
+            'delete'
+            if (unit.Status_Saat_Ini or '').startswith('DELETED_NG')
+            else 'update_status'
+        ),
+        'previous_status': previous,
+        'id_sarana': unit.ID_Sarana,
+        'status': unit.Status_Saat_Ini,
+        'customer': unit.Customer or '',
+        'last_scan_at': stamp(unit.Last_Scan_At),
+        'api_received_at': stamp(unit.API_Received_At),
+        'log_customer': log.Customer or '',
+        'event': log.Alur_Scan,
+        'waktu_scan': stamp(log.Waktu_Scan),
+    })
+
+
+def unit_dict(unit):
+    def stamp(value):
+        return (
+            value.strftime('%Y-%m-%d %H:%M:%S')
+            if value
+            else ''
+        )
+
+    def days(value):
+        return (
+            max(0, (now() - value).days)
+            if value
+            else None
+        )
+
+    customer = unit.Customer or ''
+
+    location = (
+        customer
+        if unit.Status_Saat_Ini == 'AT_CUSTOMER'
+        else (
+            unit.Vendor
+            if unit.Status_Saat_Ini == 'AT_VENDOR'
+            else '-'
+        )
+    )
+
+    return {
+        'ID_Sarana': unit.ID_Sarana,
+        'Nama_Sarana': escaped(unit.Nama_Sarana),
+        'No_Sarana': escaped(unit.No_Sarana),
+        'Vendor': escaped(unit.Vendor or '-'),
+        'Customer': escaped(customer),
+        'Lokasi_Mitra': escaped(location),
+        'Status_Saat_Ini': escaped(unit.Status_Saat_Ini),
+        'Last_Scan_At': stamp(unit.Last_Scan_At),
+        'Days_Since_Scan': days(unit.Last_Scan_At),
+        'API_Received_At': stamp(unit.API_Received_At),
+        'Days_At_API': (
+            days(unit.API_Received_At)
+            if unit.Status_Saat_Ini == 'AT_API'
+            else None
+        ),
+    }
 
 def escaped(value):
     return html.escape(str(value or ''), quote=True)
@@ -248,54 +500,204 @@ def delete_vendor(name: str = Form(...)):
     }
 
 @app.get('/api/admin/database')
-def database(request:Request, background_tasks:BackgroundTasks, include_master:bool=True):
+def database(
+    request: Request,
+    background_tasks: BackgroundTasks,
+    include_master: bool = True,
+):
+    require(
+        not include_master
+        or request.state.role == 'admin',
+        'Master data khusus admin.',
+        403,
+    )
+
     with SessionLocal() as session:
-        master=[{'ID_Sarana':s.ID_Sarana,'Nama_Sarana':escaped(s.Nama_Sarana),
-                 'No_Sarana':escaped(s.No_Sarana),'Vendor':escaped(s.Vendor or '-'),
-                 'Status_Saat_Ini':escaped(s.Status_Saat_Ini),'Tujuan_Akhir':''}
-                for s in session.query(Sarana).order_by(Sarana.ID_Sarana)] if include_master else []
-        logs=[{'id':l.id,'ID_Sarana':l.ID_Sarana,'Alur_Scan':escaped(l.Alur_Scan),
-               'Vendor':escaped(l.Vendor or '-'),'Tujuan_Akhir':'',
-               'Waktu_Scan':l.Waktu_Scan.strftime('%Y-%m-%d %H:%M:%S')}
-              for l in session.query(LogScan).order_by(LogScan.id.desc()).limit(500)]
-    return {'master':master,'logs':logs}
+        master = (
+            [
+                unit_dict(unit)
+                for unit in session.query(Sarana)
+                .order_by(Sarana.ID_Sarana)
+            ]
+            if include_master
+            else []
+        )
+
+        logs = [
+            {
+                'id': log.id,
+                'ID_Sarana': log.ID_Sarana,
+                'Alur_Scan': escaped(log.Alur_Scan),
+                'Vendor': escaped(log.Vendor or '-'),
+                'Customer': escaped(log.Customer or ''),
+                'Waktu_Scan': log.Waktu_Scan.strftime(
+                    '%Y-%m-%d %H:%M:%S'
+                ),
+            }
+            for log in session.query(LogScan)
+            .order_by(LogScan.id.desc())
+            .limit(500)
+        ]
+
+    return {
+        'master': master,
+        'logs': logs,
+    }
 
 @app.get('/api/dashboard')
 def dashboard():
-    grouped={}
+    grouped = {}
+
     with SessionLocal() as session:
-        for s in session.query(Sarana):
-            status=s.Status_Saat_Ini or 'AT_API'
-            if status.startswith('DELETED'):continue
-            name=s.Nama_Sarana or 'Tanpa Nama Part'
-            g=grouped.setdefault(name,dict(Nama_Part=escaped(name),Total_QTY=0,PT_API=0,Truck=0,L2_Vendor=0,Lost=0))
-            g['Total_QTY']+=1
-            col={'AT_API':'PT_API','AT_VENDOR':'L2_Vendor','IN_TRANSIT_OUT':'Truck','IN_TRANSIT_IN':'Truck','LOST_IN_TRANSIT':'Lost'}.get(status)
-            if col:g[col]+=1
+        for unit in session.query(Sarana):
+            status = unit.Status_Saat_Ini or 'AT_API'
+
+            if status.startswith('DELETED'):
+                continue
+
+            name = unit.Nama_Sarana or 'Tanpa Nama Part'
+
+            group = grouped.setdefault(
+                name,
+                dict(
+                    Nama_Part=escaped(name),
+                    Total_QTY=0,
+                    PT_API=0,
+                    Truck=0,
+                    L2_Vendor=0,
+                    Lost=0,
+                    Mitra={},
+                ),
+            )
+
+            group['Total_QTY'] += 1
+
+            column = {
+                'AT_API': 'PT_API',
+                'AT_VENDOR': 'L2_Vendor',
+                'AT_CUSTOMER': 'L2_Vendor',
+                'IN_TRANSIT_OUT': 'Truck',
+                'IN_TRANSIT_IN': 'Truck',
+                'LOST_IN_TRANSIT': 'Lost',
+            }.get(status)
+
+            if column:
+                group[column] += 1
+
+            if status in ('AT_VENDOR', 'AT_CUSTOMER'):
+                label = (
+                    'Customer: ' + (
+                        unit.Customer or 'Belum tercatat'
+                    )
+                    if status == 'AT_CUSTOMER'
+                    else 'Vendor: ' + (
+                        unit.Vendor or '-'
+                    )
+                )
+
+                group['Mitra'][label] = (
+                    group['Mitra'].get(label, 0) + 1
+                )
+
+    for group in grouped.values():
+        group['Mitra'] = [
+            {'nama': escaped(name), 'qty': qty}
+            for name, qty in sorted(
+                group['Mitra'].items()
+            )
+        ]
+
     return list(grouped.values())
 
 @app.get('/api/admin/users')
 def users():
     with SessionLocal() as session:
-        return {'users':[dict(id=u.id,username=u.username,role=u.role,nama_lengkap=escaped(u.nama_lengkap),
-                              npk=escaped(u.npk),jabatan=escaped(u.jabatan),is_primary=u.username==PRIMARY_ADMIN)
-                         for u in session.query(User).order_by(User.id)]}
+        return {
+            'users': [
+                dict(
+                    id=user.id,
+                    username=user.username,
+                    role=user.role,
+                    nama_lengkap=escaped(user.nama_lengkap),
+                    npk=escaped(user.npk),
+                    jabatan=escaped(user.jabatan),
+                    is_primary=user.username == PRIMARY_ADMIN,
+                    scan_permissions=allowed_scans(user),
+                    vendor_scope=user.vendor_scope or '',
+                )
+                for user in session.query(User)
+                .order_by(User.id)
+            ]
+        }
 
 @app.post('/api/admin/users/create')
-def create_user(nama_lengkap:str=Form(...),username:str=Form(...),npk:str=Form(...),
-                jabatan:str=Form(...),role:str=Form(...),password:str=Form(...)):
-    username=username.strip()
-    require(bool(re.fullmatch(r'[A-Za-z0-9_.-]{3,50}',username)),'Username harus 3–50 karakter huruf/angka/titik/underscore/tanda minus.')
-    require(role in ['admin','member','guest'],'Role tidak valid.')
-    require(12<=len(password)<=256,'Password minimal 12 dan maksimal 256 karakter.')
-    require(0<len(nama_lengkap.strip())<=150 and len(npk)<=50 and len(jabatan)<=100,'Data pegawai tidak valid.')
+def create_user(
+    nama_lengkap: str = Form(...),
+    username: str = Form(...),
+    npk: str = Form(...),
+    jabatan: str = Form(...),
+    role: str = Form(...),
+    password: str = Form(...),
+    scan_permissions: str = Form('[]'),
+    vendor_scope: str = Form(''),
+):
+    username = username.strip()
+
+    require(
+        bool(re.fullmatch(
+            r'[A-Za-z0-9_.-]{3,50}',
+            username,
+        )),
+        'Username tidak valid.',
+    )
+
+    require(
+        12 <= len(password) <= 256,
+        'Password minimal 12 dan maksimal 256 karakter.',
+    )
+
+    require(
+        0 < len(nama_lengkap.strip()) <= 150
+        and len(npk) <= 50
+        and len(jabatan) <= 100,
+        'Data pegawai tidak valid.',
+    )
+
     with SessionLocal() as session:
         lock_writes(session)
-        require(not session.query(User).filter_by(username=username).first(),'Username sudah digunakan.',409)
-        session.add(User(username=username,password=hash_password(password),role=role,
-                         nama_lengkap=nama_lengkap.strip(),npk=npk.strip(),jabatan=jabatan.strip()))
+
+        permissions, scope = validate_access(
+            session,
+            role,
+            scan_permissions,
+            vendor_scope,
+        )
+
+        require(
+            not session.query(User)
+            .filter_by(username=username)
+            .first(),
+            'Username sudah digunakan.',
+            409,
+        )
+
+        session.add(User(
+            username=username,
+            password=hash_password(password),
+            role=role,
+            nama_lengkap=nama_lengkap.strip(),
+            npk=npk.strip(),
+            jabatan=jabatan.strip(),
+            scan_permissions=permissions,
+            vendor_scope=scope,
+        ))
+
         session.commit()
-    return {'status':'success','message':'Akun berhasil dibuat.'}
+
+    return {
+        'status': 'success',
+        'message': 'Akun berhasil dibuat.',
+    }
 
 @app.post('/api/admin/users/reset-password/{user_id}')
 def reset_password(user_id:int, request:Request, password:str=Form(...),
@@ -333,52 +735,281 @@ def delete_user(user_id:int,request:Request):
     return {'status':'success','message':'Akun dihapus.'}
 
 @app.post('/api/admin/sarana/add-batch')
-def add_batch(request:Request,background_tasks:BackgroundTasks,prefix_id:str=Form(...),
-              nama_sarana:str=Form(...),qty:int=Form(...),vendor:str=Form(...)):
-    prefix=prefix_id.strip().upper();name=nama_sarana.strip();vendor=vendor.strip().upper()
-    require(bool(re.fullmatch(r'[A-Z0-9][A-Z0-9_-]{0,49}',prefix)),'Prefix tidak valid.')
-    require(1<=qty<=100 and 0<len(name)<=150 and 0<len(vendor)<=100,'Jumlah 1–100, nama dan vendor wajib diisi.')
-    items=[]
+def add_batch(
+    request: Request,
+    background_tasks: BackgroundTasks,
+    prefix_id: str = Form(...),
+    nama_sarana: str = Form(...),
+    qty: int = Form(...),
+    vendor: str = Form(...),
+):
+    prefix = prefix_id.strip().upper()
+    name = nama_sarana.strip()
+    vendor = vendor.strip().upper()
+
+    require(
+        bool(re.fullmatch(
+            r'[A-Z0-9][A-Z0-9_-]{0,49}',
+            prefix,
+        )),
+        'Prefix tidak valid.',
+    )
+
+    require(
+        1 <= qty <= 100
+        and 0 < len(name) <= 150
+        and 0 < len(vendor) <= 100,
+        'Jumlah 1–100, nama dan vendor wajib diisi.',
+    )
+
+    items = []
+
     with SessionLocal() as session:
         lock_writes(session)
-        maximum=0
-        for s in session.query(Sarana):
-            if s.ID_Sarana.startswith(prefix+'-'):
-                suffix=s.ID_Sarana[len(prefix)+1:]
-                if suffix.isdigit():maximum=max(maximum,int(suffix))
-        for n in range(maximum+1,maximum+qty+1):
-            item=dict(ID_Sarana=f'{prefix}-{n:03d}',Nama_Sarana=name,No_Sarana=str(n),Vendor=vendor,Status_Saat_Ini='AT_API')
-            unit=Sarana(**item);session.add(unit);items.append(item)
-            log_event(session,unit,'TAMBAH STOK — Unit baru masuk PT API',request.state.actor)
-        enqueue(session,{'action':'add_batch','items':items})
+
+        maximum = 0
+
+        for unit in session.query(Sarana):
+            if unit.ID_Sarana.startswith(prefix + '-'):
+                suffix = unit.ID_Sarana[len(prefix) + 1:]
+
+                if suffix.isdigit():
+                    maximum = max(
+                        maximum,
+                        int(suffix),
+                    )
+
+        for number in range(
+            maximum + 1,
+            maximum + qty + 1,
+        ):
+            received = now()
+
+            item = dict(
+                ID_Sarana=f'{prefix}-{number:03d}',
+                Nama_Sarana=name,
+                No_Sarana=str(number),
+                Vendor=vendor,
+                Status_Saat_Ini='AT_API',
+            )
+
+            unit = Sarana(
+                **item,
+                Customer='',
+                API_Received_At=received,
+            )
+
+            session.add(unit)
+
+            log = log_event(
+                session,
+                unit,
+                'TAMBAH STOK — Unit baru masuk PT API',
+                request.state.actor,
+            )
+
+            item.update(
+                Customer='',
+                Last_Scan_At='',
+                API_Received_At=received.strftime(
+                    '%Y-%m-%d %H:%M:%S'
+                ),
+                Alur_Scan=log.Alur_Scan,
+                Waktu_Scan=log.Waktu_Scan.strftime(
+                    '%Y-%m-%d %H:%M:%S'
+                ),
+            )
+
+            items.append(item)
+
+        enqueue(session, {
+            'schema': 'tracking_v2',
+            'action': 'add_batch',
+            'items': items,
+        })
+
         session.commit()
-    return {'status':'success','message':f'{qty} unit tersimpan di database online. Salinan Sheets mengikuti status sinkronisasi.'}
+
+    return {
+        'status': 'success',
+        'message': (
+            f'{qty} unit tersimpan. '
+            'Salinan Sheets mengikuti antrean.'
+        ),
+    }
 
 @app.post('/api/scan')
-def scan(request:Request,background_tasks:BackgroundTasks,id_sarana:str=Form(...),alur:str=Form(...)):
-    targets={'1':('AT_API','IN_TRANSIT_OUT','PT API Out → In Truck'),
-             '2':('IN_TRANSIT_OUT','AT_VENDOR','In Truck → Vendor In'),
-             '3':('AT_VENDOR','IN_TRANSIT_IN','Vendor Out → In Truck'),
-             '4':('IN_TRANSIT_IN','AT_API','In Truck → PT API In')}
-    require(alur in targets,'Alur tidak valid.')
-    previous,target,label=targets[alur]
+def scan(
+    request: Request,
+    background_tasks: BackgroundTasks,
+    id_sarana: str = Form(...),
+    alur: str = Form(...),
+    customer: str = Form(''),
+):
+    targets = {
+        '1': (
+            'AT_API',
+            'IN_TRANSIT_OUT',
+            'PT API Out → In Truck',
+        ),
+        '2': (
+            'IN_TRANSIT_OUT',
+            'AT_VENDOR',
+            'In Truck → Vendor In',
+        ),
+        '3': (
+            'AT_VENDOR',
+            'IN_TRANSIT_IN',
+            'Vendor Out → In Truck',
+        ),
+        '4': (
+            'IN_TRANSIT_IN',
+            'AT_API',
+            'In Truck → PT API In',
+        ),
+        '5': (
+            'AT_API',
+            'AT_CUSTOMER',
+            'PT API Out → Customer',
+        ),
+        '6': (
+            'AT_CUSTOMER',
+            'AT_API',
+            'Customer → PT API In',
+        ),
+    }
+
     require(
-        configured(),
-        "Scan belum disimpan: integrasi Sheets belum dikonfigurasi.",
-        503,)
+        alur in targets,
+        'Alur tidak valid.',
+    )
+
+    require(
+        configured() or LOCAL_TRIAL,
+        'Integrasi Sheets belum dikonfigurasi. '
+        'Scan belum disimpan.',
+        503,
+    )
+
+    previous, target, label = targets[alur]
+
     with SessionLocal() as session:
         lock_writes(session)
-        unit=session.get(Sarana,id_sarana.strip());require(unit is not None,'ID tidak terdaftar.',404)
-        current=unit.Status_Saat_Ini or 'AT_API'
-        require(not current.startswith('DELETED'),'Unit sudah dihapus karena NG.',409)
-        require(current==previous or current=='LOST_IN_TRANSIT',f'Scan ditolak: status saat ini {current}.',409)
-        if current=='LOST_IN_TRANSIT':label='RECOVERY ('+label+')'
+
+        user = require_scan_access(
+            session,
+            request,
+            alur,
+        )
+
+        unit = session.get(
+            Sarana,
+            id_sarana.strip(),
+        )
+
+        require(
+            unit is not None,
+            'ID tidak terdaftar.',
+            404,
+        )
+
+        require_scan_access(
+            session,
+            request,
+            alur,
+            unit.Vendor or '-',
+        )
+
+        current = unit.Status_Saat_Ini or 'AT_API'
+
+        recovery = (
+            current == 'LOST_IN_TRANSIT'
+            and user.role == 'admin'
+            and alur in ('2', '4')
+        )
+
+        require(
+            current == previous or recovery,
+            f'Scan ditolak: status saat ini {current}.',
+            409,
+        )
+
+        if recovery:
+            label = 'RECOVERY (' + label + ')'
+
+        log_customer = unit.Customer or ''
+
+        if alur == '5':
+            customer = ' '.join(
+                customer.strip().upper().split()
+            )
+
+            destination = session.get(
+                CustomerRecord,
+                customer,
+            )
+
+            require(
+                destination is not None
+                and destination.active == 1,
+                'Pilih customer aktif sebelum scan.',
+            )
+
+            unit.Customer = customer
+            log_customer = customer
+
+        elif alur == '6':
+            require(
+                bool(log_customer),
+                'Customer tujuan unit belum tercatat. '
+                'Hubungi admin.',
+                409,
+            )
+
+            unit.Customer = ''
+
+        else:
+            require(
+                not unit.Customer,
+                'Data customer tidak konsisten. '
+                'Hubungi admin.',
+                409,
+            )
+
         if alur == '2':
-            begin_unloading_group(session, unit, request.state.actor)
-        unit.Status_Saat_Ini=target;log_event(session,unit,label,request.state.actor)
-        enqueue(session,{'action':'update_status','id_sarana':unit.ID_Sarana,'status':target})
+            begin_unloading_group(
+                session,
+                unit,
+                request.state.actor,
+            )
+
+        unit.Status_Saat_Ini = target
+        unit.Last_Scan_At = now()
+
+        if target == 'AT_API':
+            unit.API_Received_At = unit.Last_Scan_At
+
+        event = label + (
+            f' ({log_customer})'
+            if alur in ('5', '6')
+            else ''
+        )
+
+        record_status_change(
+            session,
+            unit,
+            event,
+            request.state.actor,
+            log_customer,
+            previous=current,
+        )
+
         session.commit()
-    return {'status':'success','message':f'Scan tersimpan: {target}.'}
+
+    return {
+        'status': 'success',
+        'message': f'Scan tersimpan: {target}.',
+    }
 
 @app.post('/api/admin/sarana/delete-ng')
 def delete_ng(request:Request,background_tasks:BackgroundTasks,id_sarana:str=Form(...),alasan:str=Form(...)):
@@ -387,9 +1018,15 @@ def delete_ng(request:Request,background_tasks:BackgroundTasks,id_sarana:str=For
         lock_writes(session)
         unit=session.get(Sarana,id_sarana.strip());require(unit is not None,'ID tidak ditemukan.',404)
         require(not (unit.Status_Saat_Ini or '').startswith('DELETED'),'Unit sudah dihapus.',409)
-        unit.Status_Saat_Ini=f'DELETED_NG ({reason})'
-        log_event(session,unit,'DIHAPUS (NG) — '+reason,request.state.actor)
-        enqueue(session,{'action':'delete','id_sarana':unit.ID_Sarana,'status':unit.Status_Saat_Ini})
+        previous = unit.Status_Saat_Ini
+        unit.Status_Saat_Ini = f'DELETED_NG ({reason})'
+        record_status_change(
+            session,
+            unit,
+            'DIHAPUS (NG) — ' + reason,
+            request.state.actor,
+            previous=previous,
+        )
         session.commit()
     return {'status':'success','message':'Unit NG dihapus dari stok aktif dan dicatat di log.'}
 
@@ -438,14 +1075,38 @@ def unloading_preview(session, actor):
 @app.get('/api/unloading/preview')
 def preview_unloading(request:Request):
     with SessionLocal() as session:
-        _, groups, token = unloading_preview(session, request.state.actor)
+        require_scan_access(session, request, '2')
+        _, groups, token = unloading_preview(
+            session,
+            request.state.actor,
+        )
+        for group in groups:
+            require_scan_access(
+                session,
+                request,
+                '2',
+                group['vendor'],
+            )
     return {'groups':groups, 'token':token, 'missing_count':sum(len(g['missing_ids']) for g in groups)}
 
 @app.post('/api/finish-vendor-unloading')
 def finish_unloading(request:Request, preview_token:str=Form(...)):
     with SessionLocal() as session:
         lock_writes(session)
-        groups, details, token = unloading_preview(session, request.state.actor)
+        require_scan_access(session, request, '2')
+
+        groups, details, token = unloading_preview(
+            session,
+            request.state.actor,
+        )
+
+        for group in groups:
+            require_scan_access(
+                session,
+                request,
+                '2',
+                group.vendor,
+            )
         require(hmac.compare_digest(preview_token,token), 'Data berubah sejak pratinjau. Buka Selesai Unloading lagi.',409)
         if not groups:
             return {'status':'info','message':'Belum ada part yang mulai diterima pada sesi Anda. Stok truk tidak diubah.'}
@@ -453,8 +1114,13 @@ def finish_unloading(request:Request, preview_token:str=Form(...)):
         for id_ in missing:
             unit = session.get(Sarana,id_)
             unit.Status_Saat_Ini = 'LOST_IN_TRANSIT'
-            log_event(session,unit,'HILANG / SELISIH UNLOADING',request.state.actor)
-            enqueue(session,{'action':'update_status','id_sarana':id_,'status':'LOST_IN_TRANSIT'})
+            record_status_change(
+                session,
+                unit,
+                'HILANG / SELISIH UNLOADING',
+                request.state.actor,
+                previous='IN_TRANSIT_OUT',
+            )
         for group in groups:
             group.state = 'closed'; group.closed_at = now()
         session.commit()
@@ -500,3 +1166,133 @@ def resolve_sync(request:Request, background_tasks:BackgroundTasks, job_id:int=F
         job.error='Ditinjau oleh '+request.state.actor+'; keputusan: '+decision
         session.commit()
     return {'status':'success','message':'Keputusan dicatat. Antrean berikutnya dapat diproses.'}
+@app.get('/api/customers')
+def list_customers():
+    with SessionLocal() as session:
+        return {
+            'customers': [
+                customer.name
+                for customer in session.query(CustomerRecord)
+                .filter_by(active=1)
+                .order_by(CustomerRecord.name)
+            ]
+        }
+@app.post('/api/admin/sarana/customers')
+def add_customer(name: str = Form(...)):
+    name = ' '.join(
+        name.strip().upper().split()
+    )
+    require(
+        bool(re.fullmatch(
+            r'[A-Z0-9][A-Z0-9 .&()/_-]{0,99}',
+            name,
+        )),
+        'Nama customer tidak valid. Maksimal 100 karakter.',
+    )
+    with SessionLocal() as session:
+        lock_writes(session)
+
+        customer = session.get(
+            CustomerRecord,
+            name,
+        )
+        require(
+            not customer or customer.active != 1,
+            'Customer sudah tersedia.',
+            409,
+        )
+        if customer:
+            customer.active = 1
+        else:
+            session.add(CustomerRecord(
+                name=name,
+                active=1,
+            ))
+        session.commit()
+    return {
+        'status': 'success',
+        'message': 'Customer ditambahkan.',
+    }
+@app.post('/api/admin/sarana/customers/delete')
+def remove_customer(name: str = Form(...)):
+    name = ' '.join(
+        name.strip().upper().split()
+    )
+    with SessionLocal() as session:
+        lock_writes(session)
+        customer = session.get(
+            CustomerRecord,
+            name,
+        )
+        require(
+            customer is not None
+            and customer.active == 1,
+            'Customer tidak ditemukan.',
+            404,
+        )
+        require(
+            not session.query(Sarana).filter_by(
+                Customer=name,
+                Status_Saat_Ini='AT_CUSTOMER',
+            ).first(),
+            'Masih ada sarana tercatat pada customer ini.',
+            409,
+        )
+        customer.active = 0
+        session.commit()
+    return {
+        'status': 'success',
+        'message': (
+            'Customer dihapus dari pilihan. '
+            'Riwayat tetap tersimpan.'
+        ),
+    }
+@app.post('/api/admin/users/access/{user_id}')
+def update_user_access(
+    user_id: int,
+    request: Request,
+    scan_permissions: str = Form('[]'),
+    vendor_scope: str = Form(''),
+):
+    with SessionLocal() as session:
+        lock_writes(session)
+        user = session.get(User, user_id)
+        require(
+            user is not None,
+            'Akun tidak ditemukan.',
+            404,
+        )
+        require(
+            user.role == 'member',
+            'Pengaturan ini khusus akun operator.',
+        )
+        require(
+            not session.query(UnloadingGroup).filter_by(
+                actor=user.username,
+                state='open',
+            ).first(),
+            'Selesaikan sesi unloading akun ini '
+            'sebelum mengganti izin.',
+            409,
+        )
+        user.scan_permissions, user.vendor_scope = (
+            validate_access(
+                session,
+                user.role,
+                scan_permissions,
+                vendor_scope,
+            )
+        )
+        session.add(AccountAudit(
+            actor=request.state.actor,
+            target_username=user.username,
+            event='UPDATE_SCAN_ACCESS',
+        ))
+        session.commit()
+    return {
+        'status': 'success',
+        'message': (
+            'Izin diperbarui. Pengguna perlu '
+            'memuat ulang tampilan.'
+        ),
+    }

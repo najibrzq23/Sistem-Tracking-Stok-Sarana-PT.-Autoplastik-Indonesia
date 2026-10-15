@@ -15,8 +15,8 @@ from database import (
     SyncJob,
     UnloadingGroup,
     lock_writes,
-    now,
-)
+    now, CustomerRecord,
+    LOCAL_TRIAL,)
 
 
 APPS_SCRIPT_URL = os.getenv("APPS_SCRIPT_URL", "").strip()
@@ -42,6 +42,8 @@ def safe_message(value):
 
 def enqueue(session, payload):
     """Simpan antrean dalam transaksi stok yang sama."""
+    if LOCAL_TRIAL:
+        return
     if not configured():
         raise RuntimeError(
             "Integrasi Sheets belum dikonfigurasi. "
@@ -168,6 +170,9 @@ def _sync_revision(session):
             u.No_Sarana,
             u.Vendor,
             u.Status_Saat_Ini,
+            u.Customer,
+            str(u.Last_Scan_At),
+            str(u.API_Received_At),
         )
         for u in session.query(Sarana).order_by(Sarana.ID_Sarana)
     ]
@@ -179,6 +184,7 @@ def _sync_revision(session):
             l.Alur_Scan,
             l.Vendor,
             str(l.Waktu_Scan),
+            l.Customer,
         )
         for l in session.query(LogScan).order_by(LogScan.id)
     ]
@@ -204,20 +210,21 @@ def _sync_revision(session):
 
 def import_data():
     if not configured():
-        raise ValueError("Isi APPS_SCRIPT_URL dan SYNC_API_KEY.")
+        raise ValueError(
+            'Isi APPS_SCRIPT_URL dan SYNC_API_KEY.'
+        )
 
-    # Jangan menimpa transaksi yang belum terkirim ke Sheets.
     with SessionLocal() as session:
         lock_writes(session)
 
         pending = session.query(SyncJob).filter(
-            SyncJob.state != "done"
+            SyncJob.state != 'done'
         ).first()
 
         if pending:
             raise ValueError(
-                "Masih ada antrean Sheets. Selesaikan/periksa "
-                "antrean sebelum menyamakan data."
+                'Masih ada antrean Sheets. '
+                'Selesaikan/periksa antrean dahulu.'
             )
 
         baseline = _sync_revision(session)
@@ -227,8 +234,8 @@ def import_data():
         response = requests.get(
             APPS_SCRIPT_URL,
             params={
-                "sync_key": SYNC_API_KEY,
-                "action": "snapshot",
+                'sync_key': SYNC_API_KEY,
+                'action': 'snapshot',
             },
             timeout=(5, 30),
             allow_redirects=True,
@@ -239,154 +246,236 @@ def import_data():
 
     except (requests.RequestException, ValueError):
         raise ValueError(
-            "Tidak dapat membaca snapshot Sheets. "
-            "Data web tidak diubah."
+            'Snapshot Sheets tidak terbaca. '
+            'Data web tidak diubah.'
         ) from None
 
     if (
         not isinstance(data, dict)
-        or data.get("status") != "success"
-        or data.get("schema") != "tracking_snapshot_v1"
+        or data.get('status') != 'success'
+        or data.get('schema') != 'tracking_snapshot_v2'
     ):
         raise ValueError(
-            "Snapshot tidak valid. Periksa versi deployment "
-            "Apps Script. Data web tidak diubah."
+            'Snapshot belum versi v2. '
+            'Periksa deployment Apps Script.'
         )
 
-    master = data.get("master")
-    logs = data.get("logs")
+    master = data.get('master')
+    logs = data.get('logs')
 
     if not isinstance(master, list) or not isinstance(logs, list):
         raise ValueError(
-            "Snapshot master/log tidak valid. "
-            "Data web tidak diubah."
+            'Master/log snapshot tidak valid.'
         )
 
+    def timestamp(value):
+        if value is None or str(value).strip() == '':
+            return None
+
+        try:
+            result = datetime.datetime.fromisoformat(
+                str(value).strip()
+            )
+
+            if result.tzinfo:
+                result = result.astimezone(
+                    ZoneInfo('Asia/Jakarta')
+                ).replace(tzinfo=None)
+
+            if result > now() + datetime.timedelta(minutes=5):
+                raise ValueError()
+
+            return result
+
+        except (ValueError, TypeError):
+            raise ValueError(
+                'Tanggal tidak valid atau berada '
+                'di masa depan: ' + str(value)
+            ) from None
+
     parsed = []
+    parsed_logs = []
     seen = set()
 
-    valid_statuses = {
-        "AT_API",
-        "AT_VENDOR",
-        "IN_TRANSIT_OUT",
-        "IN_TRANSIT_IN",
-        "LOST_IN_TRANSIT",
+    fields = (
+        'ID_Sarana',
+        'Nama_Sarana',
+        'No_Sarana',
+        'Vendor',
+        'Status_Saat_Ini',
+        'Customer',
+        'Last_Scan_At',
+        'API_Received_At',
+    )
+
+    statuses = {
+        'AT_API',
+        'AT_VENDOR',
+        'AT_CUSTOMER',
+        'IN_TRANSIT_OUT',
+        'IN_TRANSIT_IN',
+        'LOST_IN_TRANSIT',
     }
 
     for row in master:
-        master_fields = (
-            "ID_Sarana",
-            "Nama_Sarana",
-            "No_Sarana",
-            "Vendor",
-            "Status_Saat_Ini",
+        if (
+            not isinstance(row, dict)
+            or not set(fields).issubset(row)
+        ):
+            raise ValueError(
+                'Kolom master snapshot belum lengkap.'
+            )
+
+        if all(
+            not str(row.get(field) or '').strip()
+            for field in fields
+        ):
+            continue
+
+        id_sarana = str(
+            row.get('ID_Sarana') or ''
+        ).strip()
+
+        name = str(
+            row.get('Nama_Sarana') or ''
+        ).strip()
+
+        status = str(
+            row.get('Status_Saat_Ini') or ''
+        ).strip()
+
+        if (
+            not re.fullmatch(
+                r'[A-Za-z0-9_.-]{1,100}',
+                id_sarana,
+            )
+            or not name
+            or len(name) > 150
+            or id_sarana in seen
+        ):
+            raise ValueError(
+                'Master memiliki ID/nama tidak valid '
+                'atau ID duplikat: ' + id_sarana
+            )
+
+        if (
+            status not in statuses
+            and not re.fullmatch(
+                r'DELETED_NG \(.+\)',
+                status,
+            )
+        ):
+            raise ValueError(
+                'Status tidak valid: ' + id_sarana
+            )
+
+        customer = ' '.join(
+            str(row.get('Customer') or '')
+            .strip().upper().split()
         )
 
-        for row_number, row in enumerate(master, start=2):
-            if not isinstance(row, dict):
-                raise ValueError(
-                    f"Format baris master ke-{row_number} tidak valid."
-                )
+        if (
+            len(customer) > 100
+            or (
+                status == 'AT_CUSTOMER'
+                and not customer
+            )
+        ):
+            raise ValueError(
+                'Customer tujuan tidak valid: '
+                + id_sarana
+            )
 
-            # Baris benar-benar kosong tidak dianggap stok.
-            if all(
-                str(row.get(field) or "").strip() == ""
-                for field in master_fields
-            ):
-                continue
+        if (
+            customer
+            and status != 'AT_CUSTOMER'
+            and not status.startswith('DELETED_NG')
+        ):
+            raise ValueError(
+                'Status dan customer tidak konsisten: '
+                + id_sarana
+            )
 
-            id_sarana = str(row.get("ID_Sarana") or "").strip()
-            name = str(row.get("Nama_Sarana") or "").strip()
-            status = str(row.get("Status_Saat_Ini") or "").strip()
+        seen.add(id_sarana)
 
-            if not id_sarana:
-                raise ValueError(
-                    f"Baris data ke-{row_number}: ID_Sarana kosong, "
-                    "tetapi kolom lain masih berisi data."
-                )
-
-            if not re.fullmatch(r"[A-Za-z0-9_.-]{1,100}", id_sarana):
-                raise ValueError(
-                    f"ID tidak valid: {id_sarana!r}. "
-                    "Gunakan huruf, angka, titik, underscore, atau minus."
-                )
-
-            if id_sarana in seen:
-                raise ValueError(
-                    f"ID duplikat di Sheets: {id_sarana}."
-                )
-
-            if not name:
-                raise ValueError(
-                    f"Nama_Sarana kosong pada ID {id_sarana}."
-                )
-
-            if (
-                status not in valid_statuses
-                and not re.fullmatch(r"DELETED_NG \(.+\)", status)
-            ):
-                raise ValueError(
-                    f"Status tidak valid pada ID {id_sarana}: {status!r}."
-                )
-
-            seen.add(id_sarana)
-
-            parsed.append({
-                "ID_Sarana": id_sarana,
-                "Nama_Sarana": name,
-                "No_Sarana": str(row.get("No_Sarana") or ""),
-                "Vendor": str(row.get("Vendor") or "-"),
-                "Status_Saat_Ini": status,
-            })
-
-    parsed_logs = []
+        parsed.append({
+            'ID_Sarana': id_sarana,
+            'Nama_Sarana': name,
+            'No_Sarana': str(row.get('No_Sarana') or ''),
+            'Vendor': str(row.get('Vendor') or '-'),
+            'Status_Saat_Ini': status,
+            'Customer': customer,
+            'Last_Scan_At': timestamp(
+                row.get('Last_Scan_At')
+            ),
+            'API_Received_At': timestamp(
+                row.get('API_Received_At')
+            ),
+        })
 
     for row in logs:
         if not isinstance(row, dict):
-            raise ValueError("Baris log tidak valid.")
-
-        id_sarana = str(row.get("ID_Sarana") or "").strip()
-        event = str(row.get("Alur_Scan") or "").strip()
-
-        try:
-            timestamp = datetime.datetime.fromisoformat(
-                str(row.get("Waktu_Scan") or "").strip()
+            raise ValueError(
+                'Baris log tidak valid.'
             )
 
-            if timestamp.tzinfo:
-                timestamp = timestamp.astimezone(
-                    ZoneInfo("Asia/Jakarta")
-                ).replace(tzinfo=None)
+        id_sarana = str(
+            row.get('ID_Sarana') or ''
+        ).strip()
 
-        except ValueError:
+        event = str(
+            row.get('Alur_Scan') or ''
+        ).strip()
+
+        scan_time = timestamp(
+            row.get('Waktu_Scan')
+        )
+
+        if (
+            not re.fullmatch(
+                r'[A-Za-z0-9_.-]{1,100}',
+                id_sarana,
+            )
+            or not event
+            or not scan_time
+        ):
             raise ValueError(
-                "Waktu_Scan harus berupa tanggal valid, "
-                "contoh 2026-10-07 08:00:00."
-            ) from None
-
-        if not id_sarana or not event:
-            raise ValueError("ID atau Alur_Scan log kosong.")
+                'ID, alur atau waktu log tidak valid.'
+            )
 
         parsed_logs.append({
-            "ID_Sarana": id_sarana,
-            "Alur_Scan": event,
-            "Vendor": str(row.get("Vendor") or "-"),
-            "Waktu_Scan": timestamp,
+            'ID_Sarana': id_sarana,
+            'Alur_Scan': event,
+            'Vendor': str(row.get('Vendor') or '-'),
+            'Customer': str(row.get('Customer') or ''),
+            'Waktu_Scan': scan_time,
         })
 
-    # Semua validasi selesai sebelum mengubah database.
     with SessionLocal() as session:
         lock_writes(session)
 
         pending = session.query(SyncJob).filter(
-            SyncJob.state != "done"
+            SyncJob.state != 'done'
         ).first()
 
         if pending or _sync_revision(session) != baseline:
             raise ValueError(
-                "Data web berubah ketika membaca Sheets. "
-                "Hentikan scan sebentar lalu ulangi Sync."
+                'Data web berubah saat membaca Sheets. '
+                'Hentikan scan sebentar dan ulangi Sync.'
             )
+
+        for row in parsed:
+            if (
+                row['Customer']
+                and not session.get(
+                    CustomerRecord,
+                    row['Customer'],
+                )
+            ):
+                raise ValueError(
+                    'Daftarkan customer di List Customer dahulu: '
+                    + row['Customer']
+                )
 
         old_master = session.query(Sarana).count()
         old_logs = session.query(LogScan).count()
@@ -402,16 +491,20 @@ def import_data():
         )
 
         session.add_all([
-            Sarana(**row) for row in parsed
+            Sarana(**row)
+            for row in parsed
         ])
+
         session.add_all([
-            LogScan(**row) for row in parsed_logs
+            LogScan(**row)
+            for row in parsed_logs
         ])
 
         session.commit()
 
     return (
-        f"Sheets diterapkan: master {old_master} → {len(parsed)}, "
-        f"log {old_logs} → {len(parsed_logs)}. "
-        "Sesi unloading direset; akun dan vendor tetap tersimpan."
+        f'Sheets diterapkan: master {old_master} → {len(parsed)}, '
+        f'log {old_logs} → {len(parsed_logs)}. '
+        'Sesi unloading direset; akun, vendor '
+        'dan daftar customer tetap tersimpan.'
     )
