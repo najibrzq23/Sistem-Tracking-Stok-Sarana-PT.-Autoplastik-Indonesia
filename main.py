@@ -124,7 +124,6 @@ def public_user(u):
         'nama_lengkap': u.nama_lengkap,
         'role': u.role,
         'scan_permissions': allowed_scans(u),
-        'vendor_scope': u.vendor_scope or '',
     }
 
 
@@ -146,22 +145,7 @@ def require_scan_access(session, request, alur, vendor=None):
         403,
     )
 
-    if user.role != 'admin' and alur in ('2', '3'):
-        scope = (user.vendor_scope or '').strip().upper()
-
-        require(
-            bool(scope),
-            'Admin belum menetapkan vendor akun ini.',
-            403,
-        )
-
-        if vendor is not None:
-            require(
-                scope == vendor.strip().upper(),
-                'Sarana bukan milik vendor akun ini.',
-                403,
-            )
-
+    # Tidak ada lagi pembatasan berdasarkan nama vendor.
     return user
 
 
@@ -169,7 +153,7 @@ def validate_access(
     session,
     role,
     raw_permissions,
-    vendor_scope,
+    vendor_scope='',
 ):
     require(
         role in ('admin', 'member', 'guest'),
@@ -200,40 +184,33 @@ def validate_access(
         else []
     )
 
-    scope = ' '.join(
-        vendor_scope.strip().upper().split()
-    )
-
     if role == 'member':
         require(
             bool(values),
-            'Pilih minimal satu izin scan untuk operator.',
-        )
-
-        vendor_access = bool(
-            set(values) & {'2', '3'}
+            'Pilih minimal satu izin scan.',
         )
 
         require(
             not (
-                vendor_access
+                set(values) & {'2', '3'}
                 and set(values) & {'1', '4', '5', '6'}
             ),
-            'Pisahkan akun vendor dan akun operator PT API.',
+            'Pisahkan akun vendor dan akun PT API.',
         )
 
-        if vendor_access:
-            require(
-                scope in vendor_names(session),
-                'Pilih vendor yang tersedia.',
-            )
-        else:
-            scope = ''
+    return json.dumps(values), ''
 
-    else:
-        scope = ''
 
-    return json.dumps(values), scope
+def current_partner(unit):
+    status = unit.Status_Saat_Ini or 'AT_API'
+
+    if status == 'AT_API':
+        return ''
+
+    if status == 'AT_CUSTOMER':
+        return unit.Customer or ''
+
+    return unit.Customer or unit.Vendor or ''
 
 
 def log_event(
@@ -243,14 +220,16 @@ def log_event(
     actor,
     customer=None,
 ):
+    partner = (
+        current_partner(unit)
+        if customer is None
+        else customer
+    )
+
     log = LogScan(
         ID_Sarana=unit.ID_Sarana,
-        Vendor=unit.Vendor or '-',
-        Customer=(
-            unit.Customer
-            if customer is None
-            else customer
-        ),
+        Vendor=partner or '-',
+        Customer='',
         Alur_Scan=f'{event} | Oleh: {actor}',
         Waktu_Scan=now(),
     )
@@ -267,6 +246,13 @@ def record_status_change(
     customer=None,
     previous=None,
 ):
+    if (
+        customer is None
+        and previous == 'AT_API'
+        and (unit.Status_Saat_Ini or '').startswith('DELETED')
+    ):
+        customer = ''
+
     log = log_event(
         session,
         unit,
@@ -275,76 +261,73 @@ def record_status_change(
         customer,
     )
 
-    def stamp(value):
-        return (
-            value.strftime('%Y-%m-%d %H:%M:%S')
-            if value
-            else ''
-        )
-
     enqueue(session, {
-        'schema': 'tracking_v2',
         'action': (
             'delete'
-            if (unit.Status_Saat_Ini or '').startswith('DELETED_NG')
+            if (unit.Status_Saat_Ini or '').startswith('DELETED')
             else 'update_status'
         ),
         'previous_status': previous,
         'id_sarana': unit.ID_Sarana,
         'status': unit.Status_Saat_Ini,
-        'customer': unit.Customer or '',
-        'last_scan_at': stamp(unit.Last_Scan_At),
-        'api_received_at': stamp(unit.API_Received_At),
-        'log_customer': log.Customer or '',
+        'partner': current_partner(unit),
+        'last_scan_at': (
+            unit.Last_Scan_At.strftime('%Y-%m-%d %H:%M:%S')
+            if unit.Last_Scan_At
+            else ''
+        ),
+        'log_partner': (
+            ''
+            if log.Vendor == '-'
+            else log.Vendor
+        ),
         'event': log.Alur_Scan,
-        'waktu_scan': stamp(log.Waktu_Scan),
+        'waktu_scan': log.Waktu_Scan.strftime(
+            '%Y-%m-%d %H:%M:%S'
+        ),
     })
 
 
 def unit_dict(unit):
-    def stamp(value):
-        return (
-            value.strftime('%Y-%m-%d %H:%M:%S')
-            if value
-            else ''
-        )
-
-    def days(value):
-        return (
-            max(0, (now() - value).days)
-            if value
-            else None
-        )
-
-    customer = unit.Customer or ''
-
-    location = (
-        customer
-        if unit.Status_Saat_Ini == 'AT_CUSTOMER'
-        else (
-            unit.Vendor
-            if unit.Status_Saat_Ini == 'AT_VENDOR'
-            else '-'
-        )
-    )
-
     return {
         'ID_Sarana': unit.ID_Sarana,
         'Nama_Sarana': escaped(unit.Nama_Sarana),
         'No_Sarana': escaped(unit.No_Sarana),
-        'Vendor': escaped(unit.Vendor or '-'),
-        'Customer': escaped(customer),
-        'Lokasi_Mitra': escaped(location),
-        'Status_Saat_Ini': escaped(unit.Status_Saat_Ini),
-        'Last_Scan_At': stamp(unit.Last_Scan_At),
-        'Days_Since_Scan': days(unit.Last_Scan_At),
-        'API_Received_At': stamp(unit.API_Received_At),
-        'Days_At_API': (
-            days(unit.API_Received_At)
-            if unit.Status_Saat_Ini == 'AT_API'
+        'Lokasi_Mitra': escaped(
+            current_partner(unit) or '-'
+        ),
+        'Status_Saat_Ini': escaped(
+            unit.Status_Saat_Ini
+        ),
+        'Last_Scan_At': (
+            unit.Last_Scan_At.strftime('%Y-%m-%d %H:%M:%S')
+            if unit.Last_Scan_At
+            else ''
+        ),
+        'Days_Since_Scan': (
+            max(0, (now() - unit.Last_Scan_At).days)
+            if unit.Last_Scan_At
             else None
         ),
     }
+
+
+def vendor_names(session):
+    names = set(DEFAULT_VENDORS)
+
+    names.update(
+        name.strip().upper()
+        for (name,) in session.query(VendorRecord.name)
+        if name
+    )
+
+    names -= {
+        name.strip().upper()
+        for (name,) in session.query(DeletedVendor.name)
+        if name
+    }
+
+    return sorted(names)
 
 def escaped(value):
     return html.escape(str(value or ''), quote=True)
@@ -408,32 +391,18 @@ def vendor_names(session):
     names = set(DEFAULT_VENDORS)
 
     names.update(
-        row[0].strip().upper()
-        for row in session.query(VendorRecord.name).all()
-        if row[0]
+        name.strip().upper()
+        for (name,) in session.query(VendorRecord.name)
+        if name
     )
 
-    names.update(
-        row[0].strip().upper()
-        for row in session.query(Sarana.Vendor).distinct().all()
-        if row[0] and row[0].strip() != "-"
-    )
-
-    deleted = {
-        row[0].strip().upper()
-        for row in session.query(DeletedVendor.name).all()
+    names -= {
+        name.strip().upper()
+        for (name,) in session.query(DeletedVendor.name)
+        if name
     }
 
-    names -= deleted
-
-    defaults = [
-        name for name in DEFAULT_VENDORS
-        if name in names
-    ]
-
-    extras = sorted(names - set(DEFAULT_VENDORS))
-
-    return defaults + extras
+    return sorted(names)
 
 @app.get("/api/admin/sarana/vendors")
 def list_vendors():
@@ -485,7 +454,19 @@ def delete_vendor(name: str = Form(...)):
             "Vendor tidak ditemukan dalam daftar pilihan.",
             404,
         )
-
+        require(
+            not session.query(Sarana).filter(
+                Sarana.Vendor == name,
+                Sarana.Status_Saat_Ini.in_([
+                    'AT_VENDOR',
+                    'IN_TRANSIT_OUT',
+                    'IN_TRANSIT_IN',
+                    'LOST_IN_TRANSIT',
+                ]),
+            ).first(),
+            'Vendor masih dipakai oleh sarana aktif.',
+            409,
+        )
         if not session.get(DeletedVendor, name):
             session.add(DeletedVendor(name=name))
 
@@ -565,8 +546,10 @@ def dashboard():
                     PT_API=0,
                     Truck=0,
                     L2_Vendor=0,
+                    Customer=0,
                     Lost=0,
-                    Mitra={},
+                    Vendor_Detail={},
+                    Customer_Detail={},
                 ),
             )
 
@@ -574,38 +557,47 @@ def dashboard():
 
             column = {
                 'AT_API': 'PT_API',
-                'AT_VENDOR': 'L2_Vendor',
-                'AT_CUSTOMER': 'L2_Vendor',
                 'IN_TRANSIT_OUT': 'Truck',
                 'IN_TRANSIT_IN': 'Truck',
+                'AT_VENDOR': 'L2_Vendor',
+                'AT_CUSTOMER': 'Customer',
                 'LOST_IN_TRANSIT': 'Lost',
             }.get(status)
 
             if column:
                 group[column] += 1
 
-            if status in ('AT_VENDOR', 'AT_CUSTOMER'):
-                label = (
-                    'Customer: ' + (
-                        unit.Customer or 'Belum tercatat'
-                    )
+            detail = (
+                'Vendor_Detail'
+                if status == 'AT_VENDOR'
+                else (
+                    'Customer_Detail'
                     if status == 'AT_CUSTOMER'
-                    else 'Vendor: ' + (
-                        unit.Vendor or '-'
-                    )
+                    else None
+                )
+            )
+
+            if detail:
+                partner = (
+                    current_partner(unit)
+                    or 'Belum tercatat'
                 )
 
-                group['Mitra'][label] = (
-                    group['Mitra'].get(label, 0) + 1
+                group[detail][partner] = (
+                    group[detail].get(partner, 0) + 1
                 )
 
     for group in grouped.values():
-        group['Mitra'] = [
-            {'nama': escaped(name), 'qty': qty}
-            for name, qty in sorted(
-                group['Mitra'].items()
-            )
-        ]
+        for key in (
+            'Vendor_Detail',
+            'Customer_Detail',
+        ):
+            group[key] = [
+                {'nama': escaped(name), 'qty': qty}
+                for name, qty in sorted(
+                    group[key].items()
+                )
+            ]
 
     return list(grouped.values())
 
@@ -741,11 +733,9 @@ def add_batch(
     prefix_id: str = Form(...),
     nama_sarana: str = Form(...),
     qty: int = Form(...),
-    vendor: str = Form(...),
 ):
     prefix = prefix_id.strip().upper()
     name = nama_sarana.strip()
-    vendor = vendor.strip().upper()
 
     require(
         bool(re.fullmatch(
@@ -757,9 +747,8 @@ def add_batch(
 
     require(
         1 <= qty <= 100
-        and 0 < len(name) <= 150
-        and 0 < len(vendor) <= 100,
-        'Jumlah 1–100, nama dan vendor wajib diisi.',
+        and 0 < len(name) <= 150,
+        'Jumlah 1–100 dan nama wajib diisi.',
     )
 
     items = []
@@ -783,20 +772,13 @@ def add_batch(
             maximum + 1,
             maximum + qty + 1,
         ):
-            received = now()
-
-            item = dict(
+            unit = Sarana(
                 ID_Sarana=f'{prefix}-{number:03d}',
                 Nama_Sarana=name,
                 No_Sarana=str(number),
-                Vendor=vendor,
-                Status_Saat_Ini='AT_API',
-            )
-
-            unit = Sarana(
-                **item,
+                Vendor='',
                 Customer='',
-                API_Received_At=received,
+                Status_Saat_Ini='AT_API',
             )
 
             session.add(unit)
@@ -804,26 +786,24 @@ def add_batch(
             log = log_event(
                 session,
                 unit,
-                'TAMBAH STOK — Unit baru masuk PT API',
+                'TAMBAH STOK COMMON',
                 request.state.actor,
             )
 
-            item.update(
-                Customer='',
-                Last_Scan_At='',
-                API_Received_At=received.strftime(
+            items.append({
+                'ID_Sarana': unit.ID_Sarana,
+                'Nama_Sarana': name,
+                'No_Sarana': str(number),
+                'Vendor_Customer': '',
+                'Status_Saat_Ini': 'AT_API',
+                'Scan_Terakhir': '',
+                'Alur_Scan': log.Alur_Scan,
+                'Waktu_Scan': log.Waktu_Scan.strftime(
                     '%Y-%m-%d %H:%M:%S'
                 ),
-                Alur_Scan=log.Alur_Scan,
-                Waktu_Scan=log.Waktu_Scan.strftime(
-                    '%Y-%m-%d %H:%M:%S'
-                ),
-            )
-
-            items.append(item)
+            })
 
         enqueue(session, {
-            'schema': 'tracking_v2',
             'action': 'add_batch',
             'items': items,
         })
@@ -832,10 +812,7 @@ def add_batch(
 
     return {
         'status': 'success',
-        'message': (
-            f'{qty} unit tersimpan. '
-            'Salinan Sheets mengikuti antrean.'
-        ),
+        'message': f'{qty} sarana common ditambahkan.',
     }
 
 @app.post('/api/scan')
@@ -845,6 +822,7 @@ def scan(
     id_sarana: str = Form(...),
     alur: str = Form(...),
     customer: str = Form(''),
+    vendor: str = Form(''),
 ):
     targets = {
         '1': (
@@ -879,15 +857,11 @@ def scan(
         ),
     }
 
-    require(
-        alur in targets,
-        'Alur tidak valid.',
-    )
+    require(alur in targets, 'Alur tidak valid.')
 
     require(
         configured() or LOCAL_TRIAL,
-        'Integrasi Sheets belum dikonfigurasi. '
-        'Scan belum disimpan.',
+        'Integrasi Sheets belum dikonfigurasi.',
         503,
     )
 
@@ -913,13 +887,6 @@ def scan(
             404,
         )
 
-        require_scan_access(
-            session,
-            request,
-            alur,
-            unit.Vendor or '-',
-        )
-
         current = unit.Status_Saat_Ini or 'AT_API'
 
         recovery = (
@@ -930,16 +897,30 @@ def scan(
 
         require(
             current == previous or recovery,
-            f'Scan ditolak: status saat ini {current}.',
+            f'Status saat ini {current}, scan ditolak.',
             409,
         )
 
         if recovery:
             label = 'RECOVERY (' + label + ')'
 
-        log_customer = unit.Customer or ''
+        partner = current_partner(unit)
 
-        if alur == '5':
+        if alur == '1':
+            vendor = ' '.join(
+                vendor.strip().upper().split()
+            )
+
+            require(
+                vendor in vendor_names(session),
+                'Pilih vendor tujuan yang tersedia.',
+            )
+
+            unit.Vendor = vendor
+            unit.Customer = ''
+            partner = vendor
+
+        elif alur == '5':
             customer = ' '.join(
                 customer.strip().upper().split()
             )
@@ -956,23 +937,13 @@ def scan(
             )
 
             unit.Customer = customer
-            log_customer = customer
-
-        elif alur == '6':
-            require(
-                bool(log_customer),
-                'Customer tujuan unit belum tercatat. '
-                'Hubungi admin.',
-                409,
-            )
-
-            unit.Customer = ''
+            unit.Vendor = ''
+            partner = customer
 
         else:
             require(
-                not unit.Customer,
-                'Data customer tidak konsisten. '
-                'Hubungi admin.',
+                bool(partner),
+                'Tujuan unit belum tercatat. Hubungi admin.',
                 409,
             )
 
@@ -987,20 +958,15 @@ def scan(
         unit.Last_Scan_At = now()
 
         if target == 'AT_API':
-            unit.API_Received_At = unit.Last_Scan_At
-
-        event = label + (
-            f' ({log_customer})'
-            if alur in ('5', '6')
-            else ''
-        )
+            unit.Vendor = ''
+            unit.Customer = ''
 
         record_status_change(
             session,
             unit,
-            event,
+            label + f' ({partner})',
             request.state.actor,
-            log_customer,
+            partner,
             previous=current,
         )
 
@@ -1296,3 +1262,9 @@ def update_user_access(
             'memuat ulang tampilan.'
         ),
     }
+@app.get('/api/vendors')
+def scan_vendor_list():
+    with SessionLocal() as session:
+        return {
+            'vendors': vendor_names(session)
+        }

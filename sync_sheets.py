@@ -4,6 +4,7 @@ import hashlib
 import json
 import os
 import re
+import uuid
 from zoneinfo import ZoneInfo
 
 import requests
@@ -41,99 +42,145 @@ def safe_message(value):
 
 
 def enqueue(session, payload):
-    """Simpan antrean dalam transaksi stok yang sama."""
     if LOCAL_TRIAL:
         return
+
     if not configured():
         raise RuntimeError(
-            "Integrasi Sheets belum dikonfigurasi. "
-            "Periksa APPS_SCRIPT_URL dan SYNC_API_KEY."
+            'Integrasi Sheets belum dikonfigurasi.'
         )
 
-    session.add(
-        SyncJob(
-            state="pending",
-            payload=json.dumps(
-                payload,
-                ensure_ascii=False,
-            ),
-        )
-    )
+    payload = dict(payload)
+    payload['schema'] = 'tracking_v3'
+    payload['request_id'] = uuid.uuid4().hex
+
+    session.add(SyncJob(
+        state='pending',
+        payload=json.dumps(
+            payload,
+            ensure_ascii=False,
+        ),
+    ))
 
 
 def flush_one():
-    """Kirim satu antrean, sesuai urutan."""
     if not configured():
         return {
-            "status": "not_configured",
-            "message": "Integrasi Sheets belum dikonfigurasi."}
+            'status': 'not_configured',
+            'message': 'Integrasi Sheets belum dikonfigurasi.',
+        }
 
     with SessionLocal() as session:
         lock_writes(session)
 
         job = (
             session.query(SyncJob)
-            .filter(SyncJob.state != "done")
+            .filter(SyncJob.state != 'done')
             .order_by(SyncJob.id)
             .first()
         )
 
-        # Pengiriman tidak pasti harus ditinjau dahulu.
         if not job:
-            session.rollback()
             return {
-                "status": "idle",
-                "message": "Tidak ada antrean yang belum selesai."
+                'status': 'idle',
+                'message': 'Tidak ada antrean.',
             }
-        if job.state != "pending":
-            result = {
-                "status": "blocked",
-                "job_id": job.id,
-                "job_state": job.state,
-                "message": job.error or (
-                    "Antrean paling awal perlu diperiksa sebelum dilanjutkan."
-                )
+
+        if job.state != 'pending':
+            return {
+                'status': 'blocked',
+                'job_id': job.id,
+                'job_state': job.state,
+                'message': job.error,
             }
-            session.rollback()
-            return result
-        job.state = "sending"
-        job.sent_at = now()
 
         payload = json.loads(job.payload)
+
+        if (
+            payload.get('schema') != 'tracking_v3'
+            or not payload.get('request_id')
+        ):
+            job.state = 'review'
+            job.error = (
+                'Antrean format lama. Periksa stok dan log '
+                'di Sheets sebelum menyelesaikan atau mengirim ulang.'
+            )
+
+            session.commit()
+
+            return {
+                'status': 'review',
+                'job_id': job.id,
+                'message': job.error,
+            }
+
+        job.state = 'sending'
+        job.sent_at = now()
         job_id = job.id
 
         session.commit()
 
-    try:
-        payload["_sync_key"] = SYNC_API_KEY
+    state = 'review'
+    message = ''
+    result = {}
 
+    try:
         response = requests.post(
             APPS_SCRIPT_URL,
-            json=payload,
-            timeout=(5, 20),
+            json={
+                **payload,
+                '_sync_key': SYNC_API_KEY,
+            },
+            timeout=(5, 30),
             allow_redirects=True,
         )
 
         response.raise_for_status()
-        result = response.json()
 
-        if (
-            not isinstance(result, dict)
-            or result.get("status") != "success"
-        ):
+        try:
+            result = response.json()
+        except ValueError:
             raise ValueError(
-                "Apps Script belum mengonfirmasi pengiriman."
+                'Apps Script tidak mengembalikan JSON. '
+                'Periksa URL /exec dan akses Web app.'
+            ) from None
+
+        if not isinstance(result, dict):
+            raise ValueError(
+                'Format respons Apps Script tidak valid.'
             )
 
-        state = "done"
-        message = ""
+        if result.get('status') != 'success':
+            raise ValueError(
+                safe_message(result.get('message'))
+            )
+
+        if (
+            result.get('schema') != 'tracking_ack_v3'
+            or result.get('request_id') != payload['request_id']
+            or result.get('confirmed') is not True
+        ):
+            raise ValueError(
+                'Respons sukses belum mengonfirmasi transaksi v3. '
+                'Periksa deployment Apps Script.'
+            )
+
+        state = 'done'
+
+    except requests.RequestException as error:
+        message = (
+            'Koneksi Sheets gagal atau timeout ('
+            + type(error).__name__
+            + '). Periksa master dan log sebelum mengulang.'
+        )
+
+    except ValueError as error:
+        message = safe_message(error)
 
     except Exception:
-        state = "review"
         message = (
-            "Pengiriman belum terkonfirmasi. "
-            "Periksa DATABASE dan LOG_SCAN sebelum "
-            "mengirim ulang atau melanjutkan antrean."
+            'Pengiriman belum terkonfirmasi. '
+            'Periksa master dan log Sheets.'
         )
 
     with SessionLocal() as session:
@@ -141,26 +188,28 @@ def flush_one():
 
         job = session.get(SyncJob, job_id)
 
-        if job and job.state == "sending":
+        if job and job.state == 'sending':
             job.state = state
             job.error = message
 
         session.commit()
-    output = {
-        "status": "success" if state == "done" else "review",
-        "job_id": job_id,
-        "job_state": state,
-        "message": message
-    }
-    if state == "done":
-        output["sheets_result"] = {
-            "message": result.get("message"),
-            "id_sarana": result.get("id_sarana"),
-            "status_sesudah": result.get("status_sesudah"),
-            "changed": result.get("changed"),
-        }
 
-    return output
+    return {
+        'status': (
+            'success'
+            if state == 'done'
+            else 'review'
+        ),
+        'job_id': job_id,
+        'job_state': state,
+        'message': (
+            message
+            or result.get(
+                'message',
+                'Sheets terkonfirmasi.',
+            )
+        ),
+    }
 
 def _sync_revision(session):
     master = [
@@ -211,102 +260,86 @@ def _sync_revision(session):
 def import_data():
     if not configured():
         raise ValueError(
-            'Isi APPS_SCRIPT_URL dan SYNC_API_KEY.'
+            'Integrasi Sheets belum dikonfigurasi.'
         )
 
     with SessionLocal() as session:
         lock_writes(session)
 
-        pending = session.query(SyncJob).filter(
+        if session.query(SyncJob).filter(
             SyncJob.state != 'done'
-        ).first()
-
-        if pending:
+        ).first():
             raise ValueError(
-                'Masih ada antrean Sheets. '
-                'Selesaikan/periksa antrean dahulu.'
+                'Selesaikan/periksa antrean Sheets sebelum Sync.'
             )
 
         baseline = _sync_revision(session)
         session.rollback()
 
-    try:
-        response = requests.get(
-            APPS_SCRIPT_URL,
-            params={
-                'sync_key': SYNC_API_KEY,
-                'action': 'snapshot',
-            },
-            timeout=(5, 30),
-            allow_redirects=True,
-        )
+    response = requests.get(
+        APPS_SCRIPT_URL,
+        params={
+            'action': 'snapshot',
+            'sync_key': SYNC_API_KEY,
+        },
+        timeout=(5, 30),
+        allow_redirects=True,
+    )
 
-        response.raise_for_status()
-        data = response.json()
-
-    except (requests.RequestException, ValueError):
-        raise ValueError(
-            'Snapshot Sheets tidak terbaca. '
-            'Data web tidak diubah.'
-        ) from None
+    response.raise_for_status()
+    data = response.json()
 
     if (
         not isinstance(data, dict)
         or data.get('status') != 'success'
-        or data.get('schema') != 'tracking_snapshot_v2'
+        or data.get('schema') != 'tracking_snapshot_v3'
     ):
-        raise ValueError(
-            'Snapshot belum versi v2. '
-            'Periksa deployment Apps Script.'
+        detail = (
+            data.get('message', 'Snapshot bukan v3.')
+            if isinstance(data, dict)
+            else 'Snapshot tidak valid.'
         )
+        raise ValueError(safe_message(detail))
 
     master = data.get('master')
     logs = data.get('logs')
 
-    if not isinstance(master, list) or not isinstance(logs, list):
+    if (
+        not isinstance(master, list)
+        or not isinstance(logs, list)
+    ):
         raise ValueError(
-            'Master/log snapshot tidak valid.'
+            'Master/log bukan daftar.'
         )
 
-    def timestamp(value):
-        if value is None or str(value).strip() == '':
+    def date(value):
+        if not value:
             return None
 
         try:
-            result = datetime.datetime.fromisoformat(
-                str(value).strip()
+            value = datetime.datetime.fromisoformat(
+                str(value)
             )
 
-            if result.tzinfo:
-                result = result.astimezone(
+            if value.tzinfo:
+                value = value.astimezone(
                     ZoneInfo('Asia/Jakarta')
                 ).replace(tzinfo=None)
 
-            if result > now() + datetime.timedelta(minutes=5):
+            if value > now() + datetime.timedelta(minutes=5):
                 raise ValueError()
 
-            return result
+            return value
 
         except (ValueError, TypeError):
             raise ValueError(
-                'Tanggal tidak valid atau berada '
-                'di masa depan: ' + str(value)
+                'Tanggal Sheets tidak valid.'
             ) from None
 
     parsed = []
     parsed_logs = []
     seen = set()
-
-    fields = (
-        'ID_Sarana',
-        'Nama_Sarana',
-        'No_Sarana',
-        'Vendor',
-        'Status_Saat_Ini',
-        'Customer',
-        'Last_Scan_At',
-        'API_Received_At',
-    )
+    events = set()
 
     statuses = {
         'AT_API',
@@ -318,19 +351,10 @@ def import_data():
     }
 
     for row in master:
-        if (
-            not isinstance(row, dict)
-            or not set(fields).issubset(row)
-        ):
+        if not isinstance(row, dict):
             raise ValueError(
-                'Kolom master snapshot belum lengkap.'
+                'Baris master tidak valid.'
             )
-
-        if all(
-            not str(row.get(field) or '').strip()
-            for field in fields
-        ):
-            continue
 
         id_sarana = str(
             row.get('ID_Sarana') or ''
@@ -344,6 +368,11 @@ def import_data():
             row.get('Status_Saat_Ini') or ''
         ).strip()
 
+        partner = ' '.join(
+            str(row.get('Vendor_Customer') or '')
+            .upper().split()
+        )
+
         if (
             not re.fullmatch(
                 r'[A-Za-z0-9_.-]{1,100}',
@@ -354,8 +383,8 @@ def import_data():
             or id_sarana in seen
         ):
             raise ValueError(
-                'Master memiliki ID/nama tidak valid '
-                'atau ID duplikat: ' + id_sarana
+                'ID/nama kosong, tidak valid atau duplikat: '
+                + id_sarana
             )
 
         if (
@@ -369,30 +398,16 @@ def import_data():
                 'Status tidak valid: ' + id_sarana
             )
 
-        customer = ' '.join(
-            str(row.get('Customer') or '')
-            .strip().upper().split()
-        )
-
         if (
-            len(customer) > 100
+            len(partner) > 100
+            or (status == 'AT_API' and partner)
             or (
-                status == 'AT_CUSTOMER'
-                and not customer
+                status in statuses - {'AT_API'}
+                and not partner
             )
         ):
             raise ValueError(
-                'Customer tujuan tidak valid: '
-                + id_sarana
-            )
-
-        if (
-            customer
-            and status != 'AT_CUSTOMER'
-            and not status.startswith('DELETED_NG')
-        ):
-            raise ValueError(
-                'Status dan customer tidak konsisten: '
+                'Status dan tujuan tidak sesuai: '
                 + id_sarana
             )
 
@@ -401,16 +416,24 @@ def import_data():
         parsed.append({
             'ID_Sarana': id_sarana,
             'Nama_Sarana': name,
-            'No_Sarana': str(row.get('No_Sarana') or ''),
-            'Vendor': str(row.get('Vendor') or '-'),
+            'No_Sarana': str(
+                row.get('No_Sarana') or ''
+            ),
+            'Vendor': (
+                partner
+                if status != 'AT_CUSTOMER'
+                else ''
+            ),
+            'Customer': (
+                partner
+                if status == 'AT_CUSTOMER'
+                else ''
+            ),
             'Status_Saat_Ini': status,
-            'Customer': customer,
-            'Last_Scan_At': timestamp(
-                row.get('Last_Scan_At')
+            'Last_Scan_At': date(
+                row.get('Scan_Terakhir')
             ),
-            'API_Received_At': timestamp(
-                row.get('API_Received_At')
-            ),
+            'API_Received_At': None,
         })
 
     for row in logs:
@@ -421,13 +444,17 @@ def import_data():
 
         id_sarana = str(
             row.get('ID_Sarana') or ''
-        ).strip()
+        )
 
         event = str(
             row.get('Alur_Scan') or ''
-        ).strip()
+        )
 
-        scan_time = timestamp(
+        event_id = str(
+            row.get('Event_ID') or ''
+        )
+
+        scan_time = date(
             row.get('Waktu_Scan')
         )
 
@@ -438,47 +465,52 @@ def import_data():
             )
             or not event
             or not scan_time
+            or not event_id
+            or event_id in events
         ):
             raise ValueError(
-                'ID, alur atau waktu log tidak valid.'
+                'ID, alur, waktu atau Event_ID '
+                'log tidak valid/duplikat.'
             )
+
+        events.add(event_id)
 
         parsed_logs.append({
             'ID_Sarana': id_sarana,
             'Alur_Scan': event,
-            'Vendor': str(row.get('Vendor') or '-'),
-            'Customer': str(row.get('Customer') or ''),
+            'Vendor': str(
+                row.get('Vendor_Customer') or '-'
+            ),
+            'Customer': '',
             'Waktu_Scan': scan_time,
         })
 
     with SessionLocal() as session:
         lock_writes(session)
 
-        pending = session.query(SyncJob).filter(
-            SyncJob.state != 'done'
-        ).first()
-
-        if pending or _sync_revision(session) != baseline:
+        if (
+            session.query(SyncJob)
+            .filter(SyncJob.state != 'done')
+            .first()
+            or _sync_revision(session) != baseline
+        ):
             raise ValueError(
-                'Data web berubah saat membaca Sheets. '
-                'Hentikan scan sebentar dan ulangi Sync.'
+                'Data berubah ketika membaca Sheets. '
+                'Hentikan scan sebentar dan ulangi.'
             )
 
         for row in parsed:
             if (
-                row['Customer']
+                row['Status_Saat_Ini'] == 'AT_CUSTOMER'
                 and not session.get(
                     CustomerRecord,
                     row['Customer'],
                 )
             ):
                 raise ValueError(
-                    'Daftarkan customer di List Customer dahulu: '
+                    'Tambahkan customer dahulu: '
                     + row['Customer']
                 )
-
-        old_master = session.query(Sarana).count()
-        old_logs = session.query(LogScan).count()
 
         session.query(UnloadingGroup).delete(
             synchronize_session=False
@@ -503,8 +535,7 @@ def import_data():
         session.commit()
 
     return (
-        f'Sheets diterapkan: master {old_master} → {len(parsed)}, '
-        f'log {old_logs} → {len(parsed_logs)}. '
-        'Sesi unloading direset; akun, vendor '
-        'dan daftar customer tetap tersimpan.'
+        f'Sync selesai: {len(parsed)} sarana '
+        f'dan {len(parsed_logs)} log. '
+        'Akun dan daftar mitra tetap tersimpan.'
     )

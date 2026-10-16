@@ -159,6 +159,17 @@ button:disabled { opacity: .55; cursor: not-allowed; }
     body.overview-mode button[onclick="toggleSidebar()"] { display:inline-flex; }
     body.overview-mode #sidebar_overlay:not(.hidden) { display:block !important; }
 }
+.swal2-popup select,
+.swal2-popup select option {
+    color: #111827 !important;
+    background: #ffffff !important;
+}
+
+#station_vendor option,
+#station_customer option {
+    color: #111827;
+    background: #ffffff;
+}
     </style>
     <!-- Pengaturan PWA -->
     <link rel="manifest" href="/static/manifest.webmanifest">
@@ -304,7 +315,8 @@ button:disabled { opacity: .55; cursor: not-allowed; }
                                         <th class="py-3.5 px-4 text-center">Total QTY</th>
                                         <th class="py-3.5 px-4 text-center">PT API</th>
                                         <th class="py-3.5 px-4 text-center">Truck</th>
-                                        <th class="py-3.5 px-4 text-center">Vendor/Customer</th>
+                                        <th class="py-3.5 px-4 text-center">Vendor</th>
+                                        <th class="py-3.5 px-4 text-center">Customer</th>
                                         <th class="py-3.5 px-6 text-center">Status</th>
                                     </tr>
                                 </thead>
@@ -377,6 +389,19 @@ button:disabled { opacity: .55; cursor: not-allowed; }
                         <div class="lg:col-span-7 flex flex-col justify-between space-y-4">
                             <div>
                                 <label class="block text-xs font-bold uppercase text-gray-400 mb-2">Scan / Input Barcode ID Sarana</label>
+                                <div id="station_vendor_box" class="hidden mb-4">
+                                    <label class="block text-sm font-bold text-gray-300 mb-2">
+                                        Vendor tujuan
+                                    </label>
+
+                                    <select
+                                        id="station_vendor"
+                                        class="w-full bg-gray-900 border border-gray-700 rounded-xl px-4 py-3 text-white">
+                                        <option value="">
+                                            -- Pilih vendor sebelum scan --
+                                        </option>
+                                    </select>
+                                </div>                                
                                 <div id="station_customer_box" class="hidden mb-4">
                                     <label class="block text-sm font-bold text-gray-300 mb-2">
                                         Customer tujuan
@@ -407,80 +432,119 @@ button:disabled { opacity: .55; cursor: not-allowed; }
             <!-- 3. MENU ADMIN: MASTER DATA SARANA -->
             <div id="view_database" class="hidden space-y-6">
                 <div class="dark-card p-6 rounded-2xl border border-gray-800 shadow-xl space-y-6">
-                    <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 border-b border-gray-800 pb-4">
-                        <div class="flex items-center gap-4">
-                            <button onclick="toggleSidebar()" class="p-2.5 rounded-xl bg-gray-800 hover:bg-gray-700 text-white border border-gray-700 transition shadow-md">
-                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M4 6h16M4 12h16M4 18h16"></path></svg>
+
+                    <div class="flex flex-wrap justify-between items-center gap-4 border-b border-gray-800 pb-4">
+                        <div class="flex items-center gap-3">
+                            <button
+                                onclick="toggleSidebar()"
+                                class="bg-gray-800 text-white p-3 rounded-xl">
+                                ☰
                             </button>
+
                             <div>
-                                <h2 class="text-xl font-black text-amber-400">🗄️ Master Data Sarana </h2>
-                                <p class="text-xs text-gray-400">Hak akses khusus Foreman, Group Leader, dan Section Head</p>
+                                <h2 class="text-xl font-black text-amber-400">
+                                    🗄️ Master Data Sarana
+                                </h2>
+                                <p class="text-xs text-gray-400">
+                                    Stok Sarana 
+                                </p>
                             </div>
+                        </div>
+
+                        <div class="ml-auto flex flex-wrap gap-2">
+                            <button
+                                onclick="syncAndReloadData()"
+                                class="bg-gray-800 text-gray-200 p-3 rounded-xl text-xs">
+                                Ambil dari Sheets
+                            </button>
+
+                            <button
+                                id="master_refresh_btn"
+                                onclick="refreshMasterData()"
+                                class="bg-blue-600 text-white p-3 rounded-xl text-xs transition shadow-md">
+                                🔄 Refresh
+                            </button>
                         </div>
                     </div>
 
-                    <div class="space-y-3">
-                        <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
-                            <h3 class="text-sm font-bold text-white uppercase tracking-wider flex items-center gap-2">List Master Sarana</h3>
-                            <div class="flex items-center gap-2">
-                                <button
-                                    onclick="openDeleteNgModal()"
-                                    class="bg-red-600 hover:bg-red-500 text-white font-bold py-2 px-3.5 rounded-xl text-xs transition shadow-md">
-                                    🗑️ Hapus Stok (NG)
-                                </button>
-                                <button
-                                    onclick="openCustomerList()"
-                                    class="bg-cyan-700 hover:bg-cyan-600 text-white font-bold py-2 px-3.5 rounded-xl text-xs transition shadow-md">
-                                    List Customer
-                                </button>
-                                <button
-                                    onclick="openAddStokModal()"
-                                    class="bg-amber-600 hover:bg-amber-500 text-white font-bold py-2 px-3.5 rounded-xl text-xs transition shadow-md">
-                                    ➕ Tambah Stok Sarana
-                                </button>
-                                <button onclick="syncAndReloadData()" class="bg-blue-600 hover:bg-blue-500 text-white font-bold py-2 px-3.5 rounded-xl text-xs transition shadow-md flex items-center gap-1.5">
-                                    🔄 Refresh & Sync dari Sheets
-                                </button>
-                                <a id="sheet_link" hidden href="#" target="_blank" rel="noopener noreferrer" class="bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-2 px-3.5 rounded-xl text-xs transition shadow-md flex items-center gap-1.5">
-                                    ✏️ Edit via Google Sheets ↗
-                                </a>
-                            </div>
-                        </div>
+                    <div class="flex flex-wrap gap-2">
+                        <button
+                            onclick="openDeleteNgModal()"
+                            class="bg-red-600 text-white font-bold py-2 px-3 rounded-xl text-xs transition shadow-md">
+                            🗑️ Hapus Stok (NG)
+                        </button>
+
+                        <button
+                            onclick="openVendorList()"
+                            class="bg-teal-700 text-white font-bold py-2 px-3 rounded-xl text-xs transition shadow-md">
+                            ➕ Tambah Vendor
+                        </button>
+
+                        <button
+                            onclick="openCustomerList()"
+                            class="bg-cyan-700 text-white font-bold py-2 px-3 rounded-xl text-xs transition shadow-md">
+                            ➕ Tambah Customer
+                        </button>
+
+                        <button
+                            onclick="openAddStokModal()"
+                            class="bg-amber-600 text-white font-bold py-2 px-3 rounded-xl text-xs transition shadow-md">
+                            ➕ Tambah Stok Sarana
+                        </button>
+
+                        <a
+                            id="sheet_link"
+                            hidden
+                            href="#"
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            class="bg-emerald-600 text-white py-2 px-3 rounded-xl text-xs transition shadow-md flex items-center gap-1.5">
+                            ✏️ Buka Google Sheets ↗
+                        </a>
+                    </div>
+
+                    <div>
                         <label class="block text-xs text-gray-400 mb-2">
                             Urutkan master
                         </label>
+
                         <select
                             id="master_sort"
                             onchange="renderMasterRows()"
-                            class="bg-gray-900 border border-gray-700 rounded-xl p-3 text-sm mb-3">
+                            class="bg-gray-900 border border-gray-700 rounded-xl p-3 text-sm">
                             <option value="id">ID Sarana</option>
-                            <option value="fifo">FIFO: paling lama di PT API</option>
-                            <option value="idle">Paling lama tidak scan</option>
+                            <option value="idle">
+                                FIFO: Paling lama tidak dipakai
+                            </option>
                         </select>
-                        <p class="text-xs text-gray-400 mb-3">
-                            FIFO memprioritaskan stok AT_API.
-                            Lama tidak scan merupakan petunjuk pemeriksaan fisik,
-                            bukan bukti kehilangan.
+
+                        <p class="text-xs text-gray-400 mt-2">
+                            Urutan memakai waktu scan terakhir yang paling lama.
+                            Sarana yang belum pernah scan belum memiliki umur pemakaian yang diketahui.
                         </p>
-                        <div class="overflow-x-auto overflow-y-auto max-h-[400px] rounded-xl border border-gray-800 bg-gray-900/30">
-                            <table class="w-full text-left border-collapse text-xs">
-                                <thead class="sticky top-0 bg-gray-900 z-10">
-                                    <tr class="text-gray-400 uppercase tracking-wider border-b border-gray-800">
-                                        <th class="p-3">ID Sarana</th>
-                                        <th class="p-3">Nama Sarana</th>
-                                        <th class="p-3">No Sarana</th>
-                                        <th class="p-3">Vendor Asal</th>
-                                        <th class="p-3">Vendor/Customer Saat Ini</th>
-                                        <th class="p-3">Status</th>
-                                        <th class="p-3">Scan Terakhir</th>
-                                        <th class="p-3">Sejak Scan</th>
-                                        <th class="p-3">Lama di API</th>
-                                    </tr>
-                                </thead>
-                                <tbody id="db_master_body" class="divide-y divide-gray-800/80 font-medium"></tbody>
-                            </table>
-                        </div>
                     </div>
+
+                    <div class="overflow-x-auto overflow-y-auto max-h-[400px] rounded-xl border border-gray-800">
+                        <table class="w-full text-left border-collapse text-xs">
+                            <thead class="sticky top-0 bg-gray-900 z-10">
+                                <tr class="text-gray-400">
+                                    <th class="p-3">ID Sarana</th>
+                                    <th class="p-3">Nama Sarana</th>
+                                    <th class="p-3">No Sarana</th>
+                                    <th class="p-3">Vendor/Customer Saat Ini</th>
+                                    <th class="p-3">Status</th>
+                                    <th class="p-3">Scan Terakhir</th>
+                                    <th class="p-3">Sejak Scan</th>
+                                </tr>
+                            </thead>
+
+                            <tbody
+                                id="db_master_body"
+                                class="divide-y divide-gray-800/80">
+                            </tbody>
+                        </table>
+                    </div>
+
                 </div>
             </div>
 
@@ -714,11 +778,54 @@ button:disabled { opacity: .55; cursor: not-allowed; }
         let syncDrainTimer = null;
         let drainBusy = false;
         async function drainSheets() {
-            if (drainBusy || !currentUser || currentUser.role === 'guest') return;
+            if (
+                drainBusy
+                || !currentUser
+                || currentUser.role === 'guest'
+            ) {
+                return;
+            }
+
             drainBusy = true;
-            try { await fetch('/api/sheets/drain', {method:'POST'}); }
-            catch(error) { console.warn('Salinan Sheets akan dicoba pada jadwal berikutnya.'); }
-            finally { drainBusy = false; }
+
+            try {
+                const started = Date.now();
+
+                for (
+                    let index = 0;
+                    index < 10 && currentUser;
+                    index++
+                ) {
+                    const result = await trackingRequest(
+                        '/api/sheets/drain',
+                        {method: 'POST'}
+                    );
+
+                    if (result.status !== 'success') {
+                        if (
+                            result.status === 'review'
+                            || result.status === 'blocked'
+                        ) {
+                            console.warn(
+                                'Sheets:',
+                                result.message
+                            );
+                        }
+
+                        break;
+                    }
+
+                    if (Date.now() - started > 20000) {
+                        break;
+                    }
+                }
+
+            } catch (error) {
+                console.warn('Sheets:', error.message);
+
+            } finally {
+                drainBusy = false;
+            }
         }
         async function enterApp(user) {
             currentUser = user;
@@ -855,6 +962,33 @@ button:disabled { opacity: .55; cursor: not-allowed; }
                 document.getElementById('station_desc').innerText = cfg.desc;
                 document.getElementById('station_submit_btn').className = `w-full text-white font-bold py-3.5 px-6 rounded-xl transition text-sm ${cfg.btnClass}`;
                 document.getElementById('btn_finish_unloading').classList.toggle('hidden', !cfg.showUnloadingBtn);
+                document.getElementById('station_vendor_box')
+                    .classList.toggle('hidden', cfg.alur !== '1');
+
+                if (cfg.alur === '1') {
+                    try {
+                        const data = await trackingRequest(
+                            '/api/vendors'
+                        );
+
+                        if (generation !== stationGeneration) return;
+
+                        document.getElementById('station_vendor')
+                            .replaceChildren(
+                                new Option(
+                                    '-- Pilih vendor sebelum scan --',
+                                    ''
+                                ),
+                                ...data.vendors.map(
+                                    name => new Option(name, name)
+                                )
+                            );
+
+                    } catch (error) {
+                        setScanFeedback(error.message, 'error');
+                        return;
+                    }
+                }                
                 document.getElementById('station_customer_box')
                     .classList.toggle('hidden', cfg.alur !== '5');
                 if (cfg.alur === '5') {
@@ -979,17 +1113,16 @@ button:disabled { opacity: .55; cursor: not-allowed; }
 
             return data;
         }
-
-        function accessFields(prefix, permissions, scope, vendors) {
+        function accessFields(prefix, permissions) {
             return `
                 <p class="text-xs text-gray-400 mb-3">
-                    Khusus operator: pilih bagian scan.
-                    Izin vendor dan PT API harus memakai akun terpisah.
+                    Pilih bagian scan.
+                    Semua akun tetap bisa melihat overview.
                 </p>
 
                 <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     ${Object.entries(scanAccessLabels).map(([key, label]) => `
-                        <label class="flex items-center gap-2 text-sm text-gray-200">
+                        <label class="flex gap-2 text-sm text-gray-200">
                             <input
                                 type="checkbox"
                                 name="${prefix}_perm"
@@ -999,147 +1132,117 @@ button:disabled { opacity: .55; cursor: not-allowed; }
                         </label>
                     `).join('')}
                 </div>
-
-                <label class="block text-xs text-gray-400 mt-4 mb-2">
-                    Vendor akun (wajib untuk izin vendor)
-                </label>
-
-                <select
-                    id="${prefix}_vendor"
-                    class="w-full bg-gray-900 border border-gray-700 rounded-xl p-3 text-white">
-                    <option value="">-- Pilih Vendor --</option>
-
-                    ${vendors.map(name => `
-                        <option
-                            value="${safeText(name)}"
-                            ${name === scope ? 'selected' : ''}>
-                            ${safeText(name)}
-                        </option>
-                    `).join('')}
-                </select>
             `;
         }
-
-        async function prepareRegistrationAccess() {
+        function prepareRegistrationAccess() {
             const box = document.getElementById('reg_access_fields');
 
-            if (box.dataset.ready) return;
-
-            const data = await trackingRequest(
-                '/api/admin/sarana/vendors'
-            );
-
-            box.innerHTML = accessFields(
-                'reg',
-                [],
-                '',
-                data.vendors
-            );
-
-            box.dataset.ready = '1';
+            if (!box.dataset.ready) {
+                box.innerHTML = accessFields('reg', []);
+                box.dataset.ready = '1';
+            }
         }
-
         async function editScanAccess(id) {
             const user = userAccessRows.get(id);
 
             if (!user || user.role !== 'member') return;
 
-            try {
-                const data = await trackingRequest(
-                    '/api/admin/sarana/vendors'
-                );
+            const answer = await Swal.fire({
+                title: 'Izin Scan: ' + user.username,
+                html: accessFields(
+                    'edit',
+                    user.scan_permissions || []
+                ),
+                showCancelButton: true,
+                confirmButtonText: 'Simpan',
+                customClass: {popup: 'dark-swal'},
 
-                const answer = await Swal.fire({
-                    title: 'Izin Scan: ' + user.username,
+                preConfirm: async () => {
+                    const form = new FormData();
 
-                    html: accessFields(
-                        'edit',
-                        user.scan_permissions || [],
-                        user.vendor_scope || '',
-                        data.vendors
-                    ),
-
-                    showCancelButton: true,
-                    confirmButtonText: 'Simpan Izin',
-                    cancelButtonText: 'Batal',
-                    customClass: { popup: 'dark-swal' },
-
-                    preConfirm: async () => {
-                        const form = new FormData();
-
-                        form.append(
-                            'scan_permissions',
-                            JSON.stringify(
-                                Array.from(
-                                    document.querySelectorAll(
-                                        'input[name="edit_perm"]:checked'
-                                    ),
-                                    element => element.value
-                                )
+                    form.append(
+                        'scan_permissions',
+                        JSON.stringify(
+                            Array.from(
+                                document.querySelectorAll(
+                                    'input[name="edit_perm"]:checked'
+                                ),
+                                element => element.value
                             )
-                        );
+                        )
+                    );
 
-                        form.append(
-                            'vendor_scope',
-                            document.getElementById('edit_vendor').value
+                    try {
+                        return await trackingRequest(
+                            '/api/admin/users/access/' + id,
+                            {method: 'POST', body: form}
                         );
-
-                        try {
-                            return await trackingRequest(
-                                '/api/admin/users/access/' + id,
-                                { method: 'POST', body: form }
-                            );
-                        } catch (error) {
-                            Swal.showValidationMessage(error.message);
-                            return false;
-                        }
+                    } catch (error) {
+                        Swal.showValidationMessage(error.message);
+                        return false;
                     }
-                });
-
-                if (answer.isConfirmed) {
-                    await loadAdminUsers();
-
-                    await Swal.fire({
-                        icon: 'success',
-                        text: answer.value.message
-                    });
                 }
-            } catch (error) {
+            });
+
+            if (answer.isConfirmed) {
+                await loadAdminUsers();
+
                 await Swal.fire({
-                    icon: 'error',
-                    text: error.message
+                    icon: 'success',
+                    text: answer.value.message
                 });
             }
         }
+        function openCustomerList() {
+            return openPartnerList('customer');
+        }
 
-        async function openCustomerList() {
+        function openVendorList() {
+            return openPartnerList('vendor');
+        }
+
+        async function openPartnerList(kind) {
+            const isVendor = kind === 'vendor';
+            const label = isVendor ? 'Vendor' : 'Customer';
+
+            const readUrl = isVendor
+                ? '/api/vendors'
+                : '/api/customers';
+
+            const writeUrl = '/api/admin/sarana/'
+                + (isVendor ? 'vendors' : 'customers');
+
             try {
-                const data = await trackingRequest('/api/customers');
+                const data = await trackingRequest(readUrl);
+                const names = isVendor
+                    ? data.vendors
+                    : data.customers;
 
                 const answer = await Swal.fire({
-                    title: 'List Customer',
+                    title: 'List ' + label,
 
                     html: `
-                        <label class="block text-left text-sm mb-2">
-                            Tambah customer
+                        <label class="block text-left text-sm">
+                            Tambah ${label}
                         </label>
 
                         <input
-                            id="new_customer_name"
+                            id="partner_new"
                             class="swal2-input"
                             maxlength="100"
-                            placeholder="Contoh: HYUNDAI">
+                            placeholder="Nama ${label}">
 
-                        <label class="block text-left text-sm mt-4 mb-2">
-                            Customer terdaftar
+                        <label class="block text-left text-sm mt-4">
+                            ${label} terdaftar
                         </label>
 
                         <select
-                            id="delete_customer_name"
-                            class="swal2-select">
-                            <option value="">-- Pilih Customer --</option>
+                            id="partner_delete"
+                            class="swal2-select"
+                            style="color:#111827;background:#fff">
+                            <option value="">-- Pilih ${label} --</option>
 
-                            ${data.customers.map(name => `
+                            ${names.map(name => `
                                 <option value="${safeText(name)}">
                                     ${safeText(name)}
                                 </option>
@@ -1152,20 +1255,20 @@ button:disabled { opacity: .55; cursor: not-allowed; }
                     confirmButtonText: 'Tambah',
                     denyButtonText: 'Hapus Pilihan',
                     cancelButtonText: 'Tutup',
-                    customClass: { popup: 'dark-swal' },
+                    customClass: {popup: 'dark-swal'},
 
                     preConfirm: async () => {
                         const form = new FormData();
 
                         form.append(
                             'name',
-                            document.getElementById('new_customer_name').value
+                            document.getElementById('partner_new').value
                         );
 
                         try {
                             return await trackingRequest(
-                                '/api/admin/sarana/customers',
-                                { method: 'POST', body: form }
+                                writeUrl,
+                                {method: 'POST', body: form}
                             );
                         } catch (error) {
                             Swal.showValidationMessage(error.message);
@@ -1175,12 +1278,12 @@ button:disabled { opacity: .55; cursor: not-allowed; }
 
                     preDeny: () => {
                         const name = document.getElementById(
-                            'delete_customer_name'
+                            'partner_delete'
                         ).value;
 
                         if (!name) {
                             Swal.showValidationMessage(
-                                'Pilih customer dahulu.'
+                                'Pilih ' + label + ' dahulu.'
                             );
                             return false;
                         }
@@ -1197,20 +1300,20 @@ button:disabled { opacity: .55; cursor: not-allowed; }
                 }
 
                 if (answer.isDenied) {
-                    const yes = await Swal.fire({
+                    const confirmation = await Swal.fire({
                         icon: 'warning',
                         text: 'Hapus ' + answer.value + ' dari pilihan?',
                         showCancelButton: true
                     });
 
-                    if (!yes.isConfirmed) return;
+                    if (!confirmation.isConfirmed) return;
 
                     const form = new FormData();
                     form.append('name', answer.value);
 
                     const result = await trackingRequest(
-                        '/api/admin/sarana/customers/delete',
-                        { method: 'POST', body: form }
+                        writeUrl + '/delete',
+                        {method: 'POST', body: form}
                     );
 
                     await Swal.fire({
@@ -1218,6 +1321,7 @@ button:disabled { opacity: .55; cursor: not-allowed; }
                         text: result.message
                     });
                 }
+
             } catch (error) {
                 await Swal.fire({
                     icon: 'error',
@@ -1227,24 +1331,11 @@ button:disabled { opacity: .55; cursor: not-allowed; }
         }
 
         function renderMasterRows() {
-            const mode = document.getElementById('master_sort').value;
             const rows = [...masterRows];
 
-            if (mode === 'fifo') {
-                rows.sort((a, b) => {
-                    const aAPI = a.Status_Saat_Ini === 'AT_API';
-                    const bAPI = b.Status_Saat_Ini === 'AT_API';
-
-                    return (
-                        Number(bAPI) - Number(aAPI)
-                        || (a.API_Received_At || '9999').localeCompare(
-                            b.API_Received_At || '9999'
-                        )
-                    );
-                });
-            }
-
-            if (mode === 'idle') {
+            if (
+                document.getElementById('master_sort').value === 'idle'
+            ) {
                 rows.sort(
                     (a, b) =>
                         (b.Days_Since_Scan ?? -1)
@@ -1256,50 +1347,30 @@ button:disabled { opacity: .55; cursor: not-allowed; }
                 rows.length
                     ? rows.map(m => `
                         <tr class="hover:bg-gray-800/50">
-                            <td class="py-3 px-4 font-mono text-blue-400">
+                            <td class="p-3 font-mono text-blue-400">
                                 ${m.ID_Sarana}
                             </td>
-                            <td class="py-3 px-4">${m.Nama_Sarana}</td>
-                            <td class="py-3 px-4">${m.No_Sarana || '-'}</td>
-                            <td class="py-3 px-4">${m.Vendor || '-'}</td>
-
-                            <td class="py-3 px-4 text-cyan-300">
+                            <td class="p-3">${m.Nama_Sarana}</td>
+                            <td class="p-3">${m.No_Sarana || '-'}</td>
+                            <td class="p-3 text-cyan-300">
                                 ${m.Lokasi_Mitra || '-'}
                             </td>
-
-                            <td class="py-3 px-4 font-mono">
+                            <td class="p-3 font-mono">
                                 ${m.Status_Saat_Ini}
                             </td>
-
-                            <td class="py-3 px-4">
-                                ${m.Last_Scan_At || 'Belum ada riwayat scan'}
+                            <td class="p-3">
+                                ${m.Last_Scan_At || 'Belum pernah scan'}
                             </td>
-
-                            <td class="py-3 px-4">
+                            <td class="p-3">
                                 ${m.Days_Since_Scan == null
                                     ? '-'
                                     : m.Days_Since_Scan + ' hari'}
-                            </td>
-
-                            <td class="py-3 px-4">
-                                ${m.Days_At_API == null
-                                    ? '-'
-                                    : m.Days_At_API + ' hari'}
-
-                                <small class="block text-gray-500">
-                                    ${m.Status_Saat_Ini === 'AT_API'
-                                        ? (
-                                            m.API_Received_At
-                                            || 'Waktu masuk belum diketahui'
-                                        )
-                                        : ''}
-                                </small>
                             </td>
                         </tr>
                     `).join('')
                     : `
                         <tr>
-                            <td colspan="9" class="p-4 text-center">
+                            <td colspan="7" class="p-4 text-center">
                                 Belum ada stok.
                             </td>
                         </tr>
@@ -1307,19 +1378,46 @@ button:disabled { opacity: .55; cursor: not-allowed; }
         }
 
         async function loadAdminMaster() {
-            try {
-                const data = await trackingRequest(
-                    '/api/admin/database'
-                );
+            const data = await trackingRequest(
+                '/api/admin/database'
+            );
 
-                masterRows = data.master || [];
-                renderMasterRows();
+            masterRows = data.master || [];
+            renderMasterRows();
+        }
+
+        async function refreshMasterData() {
+            const button = document.getElementById(
+                'master_refresh_btn'
+            );
+
+            if (button.disabled) return;
+
+            button.disabled = true;
+            button.textContent = 'Memperbarui…';
+
+            try {
+                await loadAdminMaster();
+                await loadSyncStatus();
+
+                await Swal.fire({
+                    toast: true,
+                    position: 'top',
+                    icon: 'success',
+                    title: 'Master data diperbarui',
+                    timer: 1200,
+                    showConfirmButton: false
+                });
 
             } catch (error) {
                 await Swal.fire({
                     icon: 'error',
                     text: error.message
                 });
+
+            } finally {
+                button.disabled = false;
+                button.textContent = '🔄 Refresh';
             }
         }
         async function loadAdminUsers() {
@@ -1389,7 +1487,6 @@ button:disabled { opacity: .55; cursor: not-allowed; }
             formData.append('role', document.getElementById('reg_role').value);
             formData.append('password', document.getElementById('reg_password').value);
             formData.append('scan_permissions', JSON.stringify(Array.from(document.querySelectorAll('input[name="reg_perm"]:checked'), element => element.value)));
-            formData.append('vendor_scope', document.getElementById('reg_vendor')?.value || '');
             const res = await fetch('/api/admin/users/create', { method: 'POST', body: formData });
             const data = await res.json();
             if (res.ok) {
@@ -1730,12 +1827,23 @@ button:disabled { opacity: .55; cursor: not-allowed; }
                 );
                 return;
             }
+            const vendor = currentAlurVal === '1'
+                ? document.getElementById('station_vendor').value
+                : '';
+
+            if (currentAlurVal === '1' && !vendor) {
+                setScanFeedback(
+                    'Pilih vendor tujuan sebelum scan.',
+                    'error'
+                );
+                return;
+            }            
             scanRequestBusy = true; isScanningLocked = true;
             const alur = currentAlurVal;
             const button = document.getElementById('station_submit_btn');
             button.disabled = true; button.textContent = 'Mengirim scan…';
             setScanFeedback('Mengirim ' + id_sarana + '…','sending');
-            const form = new FormData(); form.append('id_sarana',id_sarana); form.append('alur',alur); form.append('customer', customer);
+            const form = new FormData(); form.append('id_sarana',id_sarana); form.append('alur',alur); form.append('customer', customer); form.append('vendor', vendor); 
             try {
                 const response = await fetch('/api/scan',{method:'POST',body:form});
                 const result = await response.json();
@@ -1789,11 +1897,19 @@ button:disabled { opacity: .55; cursor: not-allowed; }
                                 ${item.L2_Vendor}
 
                                 <small class="block text-gray-400 mt-1">
-                                    ${(item.Mitra || []).map(
+                                    ${(item.Vendor_Detail || []).map(
                                         mitra => `${mitra.nama}: ${mitra.qty}`
                                     ).join('<br>')}
                                 </small>
                             </td>
+                            <td class="py-3.5 px-4 text-center text-violet-300 font-bold">
+                                ${item.Customer}
+                                <small class="block text-gray-400 mt-1">
+                                    ${(item.Customer_Detail || []).map(
+                                        mitra => `${mitra.nama}: ${mitra.qty}`
+                                    ).join('<br>')}
+                                </small>
+                            </td>                            
                             <td class="py-3.5 px-6 text-center">${statusBadge}</td>
                         </tr>
                     `;
@@ -1859,107 +1975,64 @@ button:disabled { opacity: .55; cursor: not-allowed; }
 
         document.getElementById('station_id_input').addEventListener('keypress', (e) => { if (e.key === 'Enter') submitCurrentStation(); });
     
-        async function loadVendorOptions(selectedValue = '') {
-            const response = await fetch('/api/admin/sarana/vendors');
-            const data = await response.json();
-
-            if (!response.ok) {
-                throw new Error(data.message || 'Daftar vendor gagal dimuat.');
-            }
-
-            const select = document.getElementById('add_vendor');
-
-            select.replaceChildren(
-                new Option('-- Pilih Vendor --', '')
-            );
-
-            data.vendors.forEach(name => {
-                select.add(new Option(name, name));
-            });
-
-            select.add(
-                new Option('➕ Tambah Vendor Baru', '__ADD_VENDOR__')
-            );
-
-            select.value = selectedValue;
+        function openAddStokModal() {
+            document.getElementById('add_stok_modal')
+                .classList.remove('hidden');
         }
 
-        async function handleVendorChange() {
-            const select = document.getElementById('add_vendor');
+        function closeAddStokModal() {
+            document.getElementById('add_stok_modal')
+                .classList.add('hidden');
 
-            if (select.value !== '__ADD_VENDOR__') return;
+            document.getElementById('add_prefix_id').value = '';
+            document.getElementById('add_nama_sarana').value = '';
+            document.getElementById('add_qty').value = '1';
+        }
 
-            select.value = '';
-
-            const answer = await Swal.fire({
-                title: 'Tambah Vendor Baru',
-                input: 'text',
-                inputLabel: 'Nama vendor',
-                inputPlaceholder: 'Contoh: VENDOR BARU',
-                inputAttributes: {
-                    maxlength: '100',
-                    autocomplete: 'off'
-                },
-                showCancelButton: true,
-                confirmButtonText: 'Simpan Vendor',
-                cancelButtonText: 'Batal',
-                customClass: { popup: 'dark-swal' },
-                inputValidator: value => {
-                    if (!value || !value.trim()) {
-                        return 'Nama vendor wajib diisi.';
-                    }
-                }
-            });
-
-            if (!answer.isConfirmed) return;
+        async function handleAddStokSubmit(e) {
+            e.preventDefault();
 
             const form = new FormData();
-            form.append('name', answer.value);
+
+            form.append(
+                'prefix_id',
+                document.getElementById('add_prefix_id').value
+            );
+
+            form.append(
+                'nama_sarana',
+                document.getElementById('add_nama_sarana').value
+            );
+
+            form.append(
+                'qty',
+                document.getElementById('add_qty').value
+            );
 
             try {
-                const response = await fetch('/api/admin/sarana/vendors', {
-                    method: 'POST',
-                    body: form
-                });
+                const result = await trackingRequest(
+                    '/api/admin/sarana/add-batch',
+                    {method: 'POST', body: form}
+                );
 
-                const data = await response.json();
-
-                if (!response.ok) {
-                    throw new Error(data.message || 'Vendor gagal disimpan.');
-                }
-
-                await loadVendorOptions(data.name);
+                closeAddStokModal();
+                await refreshAllData();
 
                 await Swal.fire({
                     icon: 'success',
-                    title: 'Vendor Ditambahkan',
-                    text: data.name,
-                    timer: 1000,
-                    showConfirmButton: false,
-                    customClass: { popup: 'dark-swal' }
+                    text: result.message,
+                    customClass: {popup: 'dark-swal'}
                 });
+
+                void drainSheets();
 
             } catch (error) {
                 await Swal.fire({
                     icon: 'error',
-                    title: 'Belum Berhasil',
-                    text: error.message,
-                    customClass: { popup: 'dark-swal' }
+                    text: error.message
                 });
             }
         }
-        async function deleteSelectedVendor() {
-            const select = document.getElementById('add_vendor');
-            const name = select.value;
-
-            if (!name || name === '__ADD_VENDOR__') {
-                await Swal.fire({
-                    icon: 'info',
-                    text: 'Pilih vendor yang ingin dihapus terlebih dahulu.',
-                    customClass: { popup: 'dark-swal' }
-                });
-                return;
-            }
 
             const confirmation = await Swal.fire({
                 icon: 'warning',
@@ -2011,7 +2084,6 @@ button:disabled { opacity: .55; cursor: not-allowed; }
                     customClass: { popup: 'dark-swal' }
                 });
             }
-        }
         async function openAddStokModal() {
             try {
                 await loadVendorOptions();
@@ -2172,36 +2244,23 @@ button:disabled { opacity: .55; cursor: not-allowed; }
                 <label class="block text-xs font-bold uppercase text-gray-400 mb-1">Nama Part / Sarana</label>
                 <input type="text" id="add_nama_sarana" required class="w-full bg-gray-900 border border-gray-700 rounded-xl px-3.5 py-2.5 text-xs text-white focus:outline-none focus:border-amber-500" placeholder="Contoh: Box A">
             </div>
-            <div class="grid grid-cols-2 gap-3">
-                <div>
-                    <label class="block text-xs font-bold uppercase text-gray-400 mb-1">Total QTY (Unit)</label>
-                    <input type="number" id="add_qty" min="1" max="100" value="1" required class="w-full bg-gray-900 border border-gray-700 rounded-xl px-3.5 py-2.5 text-xs text-white focus:outline-none focus:border-amber-500 font-bold">
-                </div>
-                <div>
-                    <label class="block text-xs font-bold uppercase text-gray-400 mb-1">Vendor</label>
-                    <select id="add_vendor"
-                        required
-                        onchange="handleVendorChange()"
-                        class="w-full bg-gray-900 border border-gray-700 rounded-xl px-3.5 py-2.5 text-xs text-white focus:outline-none focus:border-amber-500 font-bold">
-                        <option value="">-- Pilih Vendor --</option>
-                        <option value="AUP">AUP</option>
-                        <option value="ASN">ASN</option>
-                        <option value="HASURA">HASURA</option>
-                        <option value="GBU">GBU</option>
-                        <option value="MUI">MUI</option>
-                        <option value="ABC">ABC</option>
-                        <option value="WANMEI">WANMEI</option>
-                        <option value="__ADD_VENDOR__">➕ Tambah Vendor Baru</option>
-                    </select>
-                    <button
-                        type="button"
-                        onclick="deleteSelectedVendor()"
-                        class="mt-2 w-full border border-red-500/30
-                            bg-red-500/10 text-red-400 rounded-lg
-                            px-3 py-2 text-xs font-semibold">
-                        🗑 Hapus Vendor Terpilih
-                    </button>
-                </div>
+            <div>
+                <label class="block text-xs font-bold text-gray-400 mb-1">
+                    Total QTY (Unit)
+                </label>
+
+                <input
+                    type="number"
+                    id="add_qty"
+                    min="1"
+                    max="100"
+                    value="1"
+                    required
+                    class="w-full bg-gray-900 border border-gray-700 rounded-xl p-3 text-white">
+
+                <p class="text-xs text-gray-400 mt-2">
+                    Sarana common. Tujuan dipilih pada saat scan keluar.
+                </p>
             </div>
 
             <div class="pt-2 flex gap-2">
