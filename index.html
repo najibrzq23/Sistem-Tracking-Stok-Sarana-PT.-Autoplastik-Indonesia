@@ -1974,11 +1974,6 @@ button:disabled { opacity: .55; cursor: not-allowed; }
         }
 
         document.getElementById('station_id_input').addEventListener('keypress', (e) => { if (e.key === 'Enter') submitCurrentStation(); });
-    
-        function openAddStokModal() {
-            document.getElementById('add_stok_modal')
-                .classList.remove('hidden');
-        }
 
         function closeAddStokModal() {
             document.getElementById('add_stok_modal')
@@ -2033,72 +2028,9 @@ button:disabled { opacity: .55; cursor: not-allowed; }
                 });
             }
         }
-
-            const confirmation = await Swal.fire({
-                icon: 'warning',
-                title: 'Hapus Vendor?',
-                text: `Hapus ${name} dari daftar pilihan? Stok dan log yang sudah ada tetap tersimpan.`,
-                showCancelButton: true,
-                confirmButtonText: 'Ya, Hapus',
-                cancelButtonText: 'Batal',
-                confirmButtonColor: '#dc2626',
-                customClass: { popup: 'dark-swal' }
-            });
-
-            if (!confirmation.isConfirmed) return;
-
-            const form = new FormData();
-            form.append('name', name);
-
-            try {
-                const response = await fetch(
-                    '/api/admin/sarana/vendors/delete',
-                    {
-                        method: 'POST',
-                        body: form
-                    }
-                );
-
-                const data = await response.json();
-
-                if (!response.ok) {
-                    throw new Error(
-                        data.message || 'Vendor gagal dihapus.'
-                    );
-                }
-
-                await loadVendorOptions();
-
-                await Swal.fire({
-                    icon: 'success',
-                    title: 'Vendor Dihapus',
-                    text: data.message,
-                    customClass: { popup: 'dark-swal' }
-                });
-
-            } catch (error) {
-                await Swal.fire({
-                    icon: 'error',
-                    title: 'Belum Berhasil',
-                    text: error.message,
-                    customClass: { popup: 'dark-swal' }
-                });
-            }
-        async function openAddStokModal() {
-            try {
-                await loadVendorOptions();
-
-                document.getElementById('add_stok_modal')
-                    .classList.remove('hidden');
-
-            } catch (error) {
-                Swal.fire({
-                    icon: 'error',
-                    title: 'Gagal Memuat Vendor',
-                    text: error.message,
-                    customClass: { popup: 'dark-swal' }
-                });
-            }
+        function openAddStokModal() {
+            document.getElementById('add_stok_modal')
+                .classList.remove('hidden');
         }
 
         function closeAddStokModal() {
