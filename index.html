@@ -1841,21 +1841,18 @@ button:disabled { opacity: .55; cursor: not-allowed; }
                 : '';
 
             if (currentAlurVal === '5' && !customer) {
-                setScanFeedback(
-                    'Pilih customer tujuan sebelum scan.',
-                    'error'
-                );
+                const msg = 'Pilih customer tujuan sebelum scan.';
+                setScanFeedback(msg, 'error');
+                // Memunculkan Pop-up Error (Wajib Klik OK)
+                await showScanResult(false, msg);
                 return;
             }
-            const vendor = currentAlurVal === '1'
-                ? document.getElementById('station_vendor').value
-                : '';
 
             if (currentAlurVal === '1' && !vendor) {
-                setScanFeedback(
-                    'Pilih vendor tujuan sebelum scan.',
-                    'error'
-                );
+                const msg = 'Pilih vendor tujuan sebelum scan.';
+                setScanFeedback(msg, 'error');
+                // Memunculkan Pop-up Error (Wajib Klik OK)
+                await showScanResult(false, msg);
                 return;
             }            
             scanRequestBusy = true; isScanningLocked = true;
@@ -2181,7 +2178,7 @@ button:disabled { opacity: .55; cursor: not-allowed; }
         <div class="flex justify-between items-center border-b border-gray-800 pb-3">
             <div>
                 <h3 class="text-lg font-black text-amber-400">➕ Tambah Stok Sarana Baru</h3>
-                <p class="text-xs text-gray-400">Generasi otomatis ID & QR COde Sarana</p>
+                <p class="text-xs text-gray-400">Generasi otomatis ID & QR Code Sarana</p>
             </div>
             <button onclick="closeAddStokModal()" class="text-gray-400 hover:text-white font-bold text-lg p-1">✕</button>
         </div>
