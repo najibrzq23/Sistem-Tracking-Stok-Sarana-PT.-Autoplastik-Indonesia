@@ -1836,47 +1836,66 @@ button:disabled { opacity: .55; cursor: not-allowed; }
         async function submitCurrentStation(cameraCode=null) {
             const id_sarana = (typeof cameraCode === 'string' ? cameraCode : document.getElementById('station_id_input').value).trim();
             if (!id_sarana || scanRequestBusy || !currentUser) return;
+
             const customer = currentAlurVal === '5'
                 ? document.getElementById('station_customer').value
                 : '';
 
+            // 1. Validasi Customer Belum Dipilih
             if (currentAlurVal === '5' && !customer) {
-                setScanFeedback(
-                    'Pilih customer tujuan sebelum scan.',
-                    'error'
-                );
+                const msg = 'Pilih customer tujuan sebelum scan.';
+                setScanFeedback(msg, 'error');
+                await showScanResult(false, msg); // Memunculkan Pop-up Error & Wajib Klik OK
                 return;
             }
+
             const vendor = currentAlurVal === '1'
                 ? document.getElementById('station_vendor').value
                 : '';
 
+            // 2. Validasi Vendor Belum Dipilih
             if (currentAlurVal === '1' && !vendor) {
-                setScanFeedback(
-                    'Pilih vendor tujuan sebelum scan.',
-                    'error'
-                );
+                const msg = 'Pilih vendor tujuan sebelum scan.';
+                setScanFeedback(msg, 'error');
+                await showScanResult(false, msg); // Memunculkan Pop-up Error & Wajib Klik OK
                 return;
             }            
-            scanRequestBusy = true; isScanningLocked = true;
+
+            // Kunci status pengiriman
+            scanRequestBusy = true; 
+            isScanningLocked = true;
             const alur = currentAlurVal;
             const button = document.getElementById('station_submit_btn');
-            button.disabled = true; button.textContent = 'Mengirim scan…';
-            setScanFeedback('Mengirim ' + id_sarana + '…','sending');
-            const form = new FormData(); form.append('id_sarana',id_sarana); form.append('alur',alur); form.append('customer', customer); form.append('vendor', vendor); 
+            button.disabled = true; 
+            button.textContent = 'Mengirim scan…';
+            setScanFeedback('Mengirim ' + id_sarana + '…', 'sending');
+
+            const form = new FormData(); 
+            form.append('id_sarana', id_sarana); 
+            form.append('alur', alur); 
+            form.append('customer', customer); 
+            form.append('vendor', vendor); 
+
             try {
-                const response = await fetch('/api/scan',{method:'POST',body:form});
+                const response = await fetch('/api/scan', { method: 'POST', body: form });
                 const result = await response.json();
+
                 if (response.ok && currentAlurVal === alur && document.getElementById('station_id_input').value.trim() === id_sarana) {
                     document.getElementById('station_id_input').value = '';
                 }
-                await showScanResult(response.ok,result.message || (response.ok?'Scan tersimpan.':'Scan ditolak.'));
+
+                // Tampilkan hasil respon dari server (Gagal / Berhasil)
+                await showScanResult(response.ok, result.message || (response.ok ? 'Scan tersimpan.' : 'Scan ditolak.'));
                 if (response.ok) void refreshAllData();
+
             } catch(error) {
-                await showScanResult(false,'Hasil belum terkonfirmasi. Periksa status unit sebelum mengulang scan.');
+                await showScanResult(false, 'Hasil belum terkonfirmasi. Periksa status unit sebelum mengulang scan.');
             } finally {
-                scanRequestBusy = false; isScanningLocked = false;
-                button.disabled = false; button.textContent = 'Kirim ID Manual';
+                // SELALU RESET STATUS AGAR TOMBOL KIRIM BISA DIPAKAI LAGI
+                scanRequestBusy = false; 
+                isScanningLocked = false;
+                button.disabled = false; 
+                button.textContent = 'Kirim ID Manual';
                 if (currentUser) setScanFeedback('Siap scan berikutnya. Pindahkan label yang sama dari kamera dahulu.');
             }
         }
