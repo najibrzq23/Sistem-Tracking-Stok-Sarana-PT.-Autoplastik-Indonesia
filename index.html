@@ -381,15 +381,15 @@ button:disabled { opacity: .55; cursor: not-allowed; }
 
                     <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
                         <div class="lg:col-span-5 border border-gray-800 rounded-xl p-4 bg-gray-900/40">
-                            <h3 class="text-xs font-bold text-gray-300 uppercase mb-3">📷 Kamera Barcode Scanner</h3>
-                            <p class="text-sm text-gray-400 mb-3">Barcode dari kamera dikirim otomatis. Pindahkan label setelah hasil tampil.</p>
+                            <h3 class="text-xs font-bold text-gray-300 uppercase mb-3">📷 Kamera QRCode Scanner</h3>
+                            <p class="text-sm text-gray-400 mb-3">QR Code dari kamera dikirim otomatis. Pindahkan label setelah hasil tampil.</p>
                             <div id="scan_feedback" role="status" aria-live="polite" class="text-sm text-gray-300 py-2">Siap scan.</div>
                             <div id="reader_container" class="w-full rounded-xl overflow-hidden border border-gray-800 bg-black/50"></div>
                         </div>
 
                         <div class="lg:col-span-7 flex flex-col justify-between space-y-4">
                             <div>
-                                <label class="block text-xs font-bold uppercase text-gray-400 mb-2">Scan / Input Barcode ID Sarana</label>
+                                <label class="block text-xs font-bold uppercase text-gray-400 mb-2">Scan / Input QR Code ID Sarana</label>
                                 <div id="station_vendor_box" class="hidden mb-4">
                                     <label class="block text-sm font-bold text-gray-300 mb-2">
                                         Vendor tujuan
@@ -1804,15 +1804,34 @@ button:disabled { opacity: .55; cursor: not-allowed; }
             });
         }
         async function showScanResult(ok, message) {
-            setScanFeedback(message, ok ? 'success':'error');
-            const started = Date.now();
-            await Swal.fire({toast:true,position:'top',icon:ok?'success':'error',
-                title:ok?'Scan berhasil':'Scan gagal',text:message,timer:1000,timerProgressBar:true,
-                showConfirmButton:false,showCloseButton:false,allowEscapeKey:false,
-                customClass:{popup:'dark-swal'}});
-            // Tetap beri 1 detik meskipun notifikasi diganti oleh dialog lain.
-            const remaining = 1000 - (Date.now()-started);
-            if (remaining > 0) await new Promise(resolve => setTimeout(resolve,remaining));
+            setScanFeedback(message, ok ? 'success' : 'error');
+
+            if (ok) {
+                // --- NOTIFIKASI BERHASIL: Auto-Close 750ms (Tanpa Klik OK) ---
+                await Swal.fire({
+                    toast: true,
+                    position: 'top',
+                    icon: 'success',
+                    title: 'Scan Berhasil!',
+                    text: message,
+                    timer: 750, // Popup otomatis hilang dalam 750 milidetik
+                    timerProgressBar: true,
+                    showConfirmButton: false, // Tanpa tombol OK
+                    allowEscapeKey: false,
+                    customClass: { popup: 'dark-swal' }
+                });
+            } else {
+                // --- NOTIFIKASI GAGAL: Wajib Klik OK (Agar Dibaca Dulu) ---
+                await Swal.fire({
+                    icon: 'error',
+                    title: 'Scan Gagal / Ditolak!',
+                    text: message, // Pesan error dinamis (misal: "Pilih vendor tujuan sebelum scan")
+                    confirmButtonText: 'Saya Mengerti (OK)',
+                    confirmButtonColor: '#dc2626', // Warna tombol merah
+                    allowOutsideClick: false, // Wajib tekan tombol OK
+                    customClass: { popup: 'dark-swal' }
+                });
+            }
         }
         async function submitCurrentStation(cameraCode=null) {
             const id_sarana = (typeof cameraCode === 'string' ? cameraCode : document.getElementById('station_id_input').value).trim();
@@ -2162,7 +2181,7 @@ button:disabled { opacity: .55; cursor: not-allowed; }
         <div class="flex justify-between items-center border-b border-gray-800 pb-3">
             <div>
                 <h3 class="text-lg font-black text-amber-400">➕ Tambah Stok Sarana Baru</h3>
-                <p class="text-xs text-gray-400">Generasi otomatis ID & Barcode Sarana</p>
+                <p class="text-xs text-gray-400">Generasi otomatis ID & QR COde Sarana</p>
             </div>
             <button onclick="closeAddStokModal()" class="text-gray-400 hover:text-white font-bold text-lg p-1">✕</button>
         </div>
