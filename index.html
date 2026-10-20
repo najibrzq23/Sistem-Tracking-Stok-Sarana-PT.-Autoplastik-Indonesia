@@ -232,9 +232,10 @@ button:disabled { opacity: .55; cursor: not-allowed; }
                 <button id="nav_overview" onclick="switchMenu('overview')" class="sidebar-btn active w-full flex items-center gap-3 px-3.5 py-3 rounded-xl text-xs font-bold text-gray-400 border border-transparent text-left">📊 Overview Dashboard</button>
 
                 <div id="section_station" class="space-y-1.5">
-                    <div class="text-[10px] font-extrabold uppercase tracking-wider text-gray-500 px-3 mt-5 mb-2">Station PT API</div>
-                    <button id="nav_api_out" onclick="switchMenu('api_out')" class="sidebar-btn w-full flex items-center gap-3 px-3.5 py-3 rounded-xl text-xs font-bold text-gray-400 border border-transparent text-left">📤 PT API - Outbound</button>
-                    <button id="nav_api_in" onclick="switchMenu('api_in')" class="sidebar-btn w-full flex items-center gap-3 px-3.5 py-3 rounded-xl text-xs font-bold text-gray-400 border border-transparent text-left">📥 PT API - Inbound</button>
+                    <div class="text-[10px] font-extrabold uppercase tracking-wider text-gray-500 px-3 mt-5 mb-2">Station PT API ➔ Vendor</div>
+                    <button id="nav_api_out" onclick="switchMenu('api_out')" class="sidebar-btn w-full flex items-center gap-3 px-3.5 py-3 rounded-xl text-xs font-bold text-gray-400 border border-transparent text-left">📤 PT API → Vendor</button>
+                    <button id="nav_api_in" onclick="switchMenu('api_in')" class="sidebar-btn w-full flex items-center gap-3 px-3.5 py-3 rounded-xl text-xs font-bold text-gray-400 border border-transparent text-left">📥 Vendor → PT API</button>
+                    <div class="text-[10px] font-extrabold uppercase tracking-wider text-gray-500 px-3 mt-5 mb-2">Station PT API ➔ Customer</div>
                     <button
                         id="nav_customer_out"
                         onclick="switchMenu('customer_out')"
@@ -248,9 +249,9 @@ button:disabled { opacity: .55; cursor: not-allowed; }
                         📥 Customer → PT API
                     </button>
 
-                    <div class="text-[10px] font-extrabold uppercase tracking-wider text-gray-500 px-3 mt-5 mb-2">Station L2 Vendor</div>
-                    <button id="nav_vendor_in" onclick="switchMenu('vendor_in')" class="sidebar-btn w-full flex items-center gap-3 px-3.5 py-3 rounded-xl text-xs font-bold text-gray-400 border border-transparent text-left">📥 Vendor L2 - Inbound</button>
-                    <button id="nav_vendor_out" onclick="switchMenu('vendor_out')" class="sidebar-btn w-full flex items-center gap-3 px-3.5 py-3 rounded-xl text-xs font-bold text-gray-400 border border-transparent text-left">📤 Vendor L2 - Outbound</button>
+                    <div class="text-[10px] font-extrabold uppercase tracking-wider text-gray-500 px-3 mt-5 mb-2">Station L2 Vendor ➔ PT API</div>
+                    <button id="nav_vendor_in" onclick="switchMenu('vendor_in')" class="sidebar-btn w-full flex items-center gap-3 px-3.5 py-3 rounded-xl text-xs font-bold text-gray-400 border border-transparent text-left">📥 PT API → Vendor L2</button>
+                    <button id="nav_vendor_out" onclick="switchMenu('vendor_out')" class="sidebar-btn w-full flex items-center gap-3 px-3.5 py-3 rounded-xl text-xs font-bold text-gray-400 border border-transparent text-left">📤 Vendor L2 → PT API</button>
                 </div>
 
                 <div id="section_admin" class="space-y-1.5">
@@ -453,12 +454,6 @@ button:disabled { opacity: .55; cursor: not-allowed; }
 
                         <div class="ml-auto flex flex-wrap gap-2">
                             <button
-                                onclick="syncAndReloadData()"
-                                class="bg-gray-800 text-gray-200 p-3 rounded-xl text-xs">
-                                Ambil dari Sheets
-                            </button>
-
-                            <button
                                 id="master_refresh_btn"
                                 onclick="refreshMasterData()"
                                 class="bg-blue-600 text-white p-3 rounded-xl text-xs transition shadow-md">
@@ -498,7 +493,7 @@ button:disabled { opacity: .55; cursor: not-allowed; }
                             href="#"
                             target="_blank"
                             rel="noopener noreferrer"
-                            class="bg-emerald-600 text-white py-2 px-3 rounded-xl text-xs transition shadow-md flex items-center gap-1.5">
+                            class="bg-emerald-600 text-white font-bold py-2 px-3 rounded-xl text-xs transition shadow-md flex items-center gap-1.5">
                             ✏️ Buka Google Sheets ↗
                         </a>
                     </div>
@@ -620,8 +615,13 @@ button:disabled { opacity: .55; cursor: not-allowed; }
                                 <label class="block text-xs font-bold uppercase text-gray-400 mb-1">Password</label>
                                 <input type="password" id="reg_password" required minlength="12" maxlength="256" class="w-full bg-gray-900 border border-gray-700 rounded-xl px-3.5 py-2.5 text-xs text-white focus:outline-none focus:border-amber-500" placeholder="••••••••">
                             </div>
-                            <button type="submit" class="w-full bg-amber-600 hover:bg-amber-500 text-white font-bold py-3 rounded-xl shadow-lg shadow-amber-600/20 transition text-xs">
-                                <div id="reg_access_fields"></div>
+                            <!-- Checkbox Izin Scan ditempatkan terpisah di luar tombol -->
+                            <div class="space-y-1">
+                                <label class="block text-xs font-bold uppercase text-gray-400 mb-1">Izin Akses Scan</label>
+                                <div id="reg_access_fields" class="p-3 bg-gray-900/60 border border-gray-800 rounded-xl"></div>
+                            </div>
+                            <!-- Tombol Simpan Berdiri Sendiri dengan Warna Biru -->
+                            <button type="submit" class="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-3.5 rounded-xl shadow-lg shadow-blue-600/30 transition text-xs flex items-center justify-center gap-2">
                                 💾 Simpan & Registrasi Akun
                             </button>
                         </form>
@@ -1397,6 +1397,7 @@ button:disabled { opacity: .55; cursor: not-allowed; }
             button.textContent = 'Memperbarui…';
 
             try {
+                const res = await fetch('/api/sync', { method: 'POST' });
                 await loadAdminMaster();
                 await loadSyncStatus();
 
