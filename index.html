@@ -227,6 +227,63 @@
             color: #ffffff !important;
             border-radius: 0.5rem !important;
         }
+
+        /* Bottom Navigation Bar khusus layar HP/Mobile */
+        @media screen and (max-width: 767px) {
+            body {
+                padding-bottom: 70px !important; /* Mencegah konten tertutup Bottom Nav */
+            }
+            .mobile-bottom-nav {
+                position: fixed;
+                bottom: 0;
+                left: 0;
+                right: 0;
+                height: 64px;
+                background-color: #111827;
+                border-top: 1px solid #1f2937;
+                display: flex;
+                justify-content: space-around;
+                align-items: center;
+                z-index: 50;
+                backdrop-filter: blur(12px);
+            }
+            .mobile-nav-item {
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+                justify-content: center;
+                color: #9ca3af;
+                font-size: 11px;
+                font-weight: 700;
+                flex: 1;
+                height: 100%;
+            }
+            .mobile-nav-item.active {
+                color: #3b82f6;
+            }
+        }
+        @media screen and (max-width: 1023px) {
+            main {
+                padding-bottom: 80px !important; /* Mencegah konten tertutup Bottom Nav Bar */
+            }
+        }
+
+        /* Container Kapsul Filter Tanggal Solid */
+        .filter-capsule {
+            background-color: #1a2332;
+            border: 1px solid #2b394e;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
+        }
+        .filter-capsule:focus-within {
+            border-color: #3b82f6;
+            box-shadow: 0 0 10px rgba(59, 130, 246, 0.3);
+        }
+
+        /* Custom Ikon Kalender Warna Terang */
+        input[type="date"]::-webkit-calendar-picker-indicator {
+            filter: invert(0.8) sepia(1) saturate(5) hue-rotate(180deg);
+            cursor: pointer;
+        }
     </style>
     <!-- Pengaturan PWA -->
     <link rel="manifest" href="/static/manifest.webmanifest">
@@ -245,7 +302,15 @@
     <div id="login_modal" class="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4">
         <div class="dark-card p-8 rounded-3xl max-w-md w-full border border-gray-800 shadow-2xl space-y-6">
             <div class="text-center space-y-2">
-                <img src="/static/logo_api.jpg" alt="Logo PT API" class="w-16 h-16 object-contain rounded-none mx-auto shadow-lg">
+                <div class="flex flex-col items-center justify-center space-y-3">
+                    <div class="p-3 bg-white/5 rounded-2xl border border-gray-800 shadow-xl">
+                        <img src="/static/logo_api.jpg" alt="Logo PT API" class="w-16 h-16 object-contain">
+                    </div>
+                    <div>
+                        <h2 class="text-2xl font-black text-white tracking-wide">PT. AUTOPLASTIK INDONESIA</h2>
+                        <p class="text-xs text-blue-400 font-bold uppercase tracking-wider mt-1">SISTEM PELACAKAN STOK SARANA</p>
+                    </div>
+                </div>                
                 <h2 class="text-2xl font-black text-white">Login System</h2>
                 <p class="text-xs text-gray-400">Silakan login sesuai username akun Anda</p>
             </div>
@@ -335,6 +400,29 @@
 
     <!-- MAIN CONTENT -->
     <main class="flex-1 p-4 md:p-8 overflow-y-auto w-full">
+        <!-- HEADER KHUSUS TAMPILAN HP (MOBILE ONLY) -->
+        <div class="lg:hidden flex justify-between items-center bg-gray-900/80 p-3.5 rounded-2xl border border-gray-800 mb-4 backdrop-blur-md sticky top-2 z-30 shadow-lg">
+            <div class="flex items-center gap-2.5">
+                <button onclick="toggleSidebar()" class="p-2 rounded-xl bg-gray-800 text-gray-300 border border-gray-700 active:scale-95 transition">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M4 6h16M4 12h16M4 18h16"></path></svg>
+                </button>
+                <div>
+                    <p id="mobile_user_name" class="text-xs font-black text-white">Najib Razzaq</p>
+                    <p id="mobile_user_role" class="text-[10px] text-blue-400 font-bold uppercase">ADMIN</p>
+                </div>
+            </div>
+            
+            <div class="flex items-center gap-3">
+                <!-- Tombol Logout HP -->
+                <button onclick="logout()" class="px-3 py-1.5 rounded-xl bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/30 text-xs font-bold transition flex items-center gap-1">
+                    🚪 Exit
+                </button>
+                <!-- Logo PT API Pojok Kanan -->
+                <div class="bg-white/10 p-1 rounded-xl border border-gray-700">
+                    <img src="/static/logo_api.jpg" alt="Logo PT API" class="w-7 h-7 object-contain">
+                </div>
+            </div>
+        </div>
         <div class="max-w-7xl mx-auto space-y-6">
 
             <!-- 1. OVERVIEW DASHBOARD -->
@@ -395,48 +483,50 @@
                         <div id="selisih_list" class="space-y-3 flex-1 overflow-y-auto max-h-[350px] pr-1"></div>
                     </div>
                 </div>
-
                 <div class="dark-card p-6 rounded-2xl border border-gray-800 shadow-xl space-y-4">
                     <div class="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4 border-b border-gray-800/80 pb-4">
                         <h3 class="text-sm font-bold text-white uppercase tracking-wider flex items-center gap-2">
-                            📜 Seluruh Audit Log Pemindaian Real-Time
+                            📜 Audit Log Pemindaian Real-Time
                         </h3>
-                        
-                        <!-- Filter Range Tanggal & Ekspor Excel -->
-                        <div class="flex flex-wrap items-center gap-2.5 w-full lg:w-auto">
-                            <div class="filter-capsule flex items-center px-3 py-1.5 rounded-xl border transition-all">
-                                <div class="flex items-center gap-1.5">
-                                    <span class="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Dari</span>
-                                    <input type="date" id="log_start_date" onchange="loadAuditLogs()" class="bg-transparent text-xs font-bold font-mono text-cyan-300 focus:outline-none">
-                                </div>                         
-                                <span class="text-xs text-gray-500 font-bold px-2">➔</span>                                
-                                <div class="flex items-center gap-1.5">
-                                    <span class="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Sampai</span>
-                                    <input type="date" id="log_end_date" onchange="loadAuditLogs()" class="bg-transparent text-xs font-bold font-mono text-cyan-300 focus:outline-none">
-                                </div>
+                        <p class="text-xs text-gray-400 mt-0.5">Ekspor Excel memuat log sesuai rentang tanggal; 'Sekarang' kembali ke tampilan real-time.</p>
+                    </div>
+                    <!-- Area Filter Range Tanggal + Sekarang + Ekspor -->
+                    <div class="flex flex-wrap items-center gap-2.5 w-full lg:w-auto">
+                        <div class="filter-capsule flex items-center px-3 py-2 rounded-xl border border-gray-700 bg-gray-900 transition-all">
+                            <div class="flex items-center gap-2">
+                                <span class="text-[10px] font-extrabold text-gray-400 uppercase tracking-wider">Dari</span>
+                                <input type="date" id="log_start_date" onchange="loadAuditLogs()" class="bg-transparent text-xs font-bold font-mono text-cyan-300 focus:outline-none">
+                            </div>                         
+                            <span class="text-xs text-gray-500 font-bold px-2">➔</span>                                
+                            <div class="flex items-center gap-2">
+                                <span class="text-[10px] font-extrabold text-gray-400 uppercase tracking-wider">Sampai</span>
+                                <input type="date" id="log_end_date" onchange="loadAuditLogs()" class="bg-transparent text-xs font-bold font-mono text-cyan-300 focus:outline-none">
                             </div>
-                            <button onclick="resetLogFilter()" class="bg-gradient-to-r from-cyan-900/80 to-blue-900/80 hover:from-cyan-800 hover:to-blue-800 text-cyan-300 border border-cyan-500/40 px-3.5 py-2 rounded-xl text-xs font-bold transition-all shadow-md active:scale-95 flex items-center gap-1.5">
-                                Sekarang
-                            </button>                    
-                            <button onclick="exportLogsToExcel()" class="bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold px-4 py-2 rounded-xl text-xs transition-all shadow-lg shadow-emerald-900/40 active:scale-95 flex items-center gap-1.5">
-                                📊 Ekspor Excel
-                            </button>
                         </div>
+                        
+                        <button onclick="resetLogFilter()" class="bg-blue-600 hover:bg-blue-500 text-white border border-blue-500/40 px-4 py-2.5 rounded-xl text-xs font-bold transition-all shadow-md active:scale-95 flex items-center gap-1.5">
+                            Sekarang
+                        </button>                    
+                        
+                        <button onclick="exportLogsToExcel()" class="bg-emerald-600 hover:bg-emerald-500 text-white font-bold px-4 py-2.5 rounded-xl text-xs transition-all shadow-lg shadow-emerald-900/40 active:scale-95 flex items-center gap-1.5">
+                            📊 Ekspor Excel
+                        </button>
                     </div>
-                    <div class="overflow-x-auto overflow-y-auto max-h-[380px] rounded-xl border border-gray-800 bg-gray-900/30">
-                        <table class="w-full text-left border-collapse text-xs">
-                            <thead class="sticky top-0 bg-gray-900 z-10">
-                                <tr class="text-gray-400 uppercase tracking-wider border-b border-gray-800">
-                                    <th class="py-3 px-4 font-bold">Log ID</th>
-                                    <th class="py-3 px-4 font-bold">ID Sarana</th>
-                                    <th class="py-3 px-4 font-bold">Alur/Event Scan</th>
-                                    <th class="py-3 px-4 font-bold">Vendor/Customer Tujuan</th>
-                                    <th class="py-3 px-4 font-bold">Waktu Pemindaian</th>
-                                </tr>
-                            </thead>
-                            <tbody id="overview_logs_body" class="divide-y divide-gray-800/80 font-medium"></tbody>
-                        </table>
-                    </div>
+                </div>
+                
+                <div class="overflow-x-auto overflow-y-auto max-h-[380px] rounded-xl border border-gray-800 bg-gray-900/30">
+                    <table class="w-full text-left border-collapse text-xs">
+                        <thead class="sticky top-0 bg-gray-900 z-10">
+                            <tr class="text-gray-400 uppercase tracking-wider border-b border-gray-800">
+                                <th class="py-3 px-4 font-bold">Log ID</th>
+                                <th class="py-3 px-4 font-bold">ID Sarana</th>
+                                <th class="py-3 px-4 font-bold">Alur / Event Scan</th>
+                                <th class="py-3 px-4 font-bold text-amber-400">Vendor / Customer Tujuan</th>
+                                <th class="py-3 px-4 font-bold">Waktu Pemindaian</th>
+                            </tr>
+                        </thead>
+                        <tbody id="overview_logs_body" class="divide-y divide-gray-800/80 font-medium"></tbody>
+                    </table>
                 </div>
             </div>
 
@@ -757,6 +847,23 @@
 
         </div>
     </main>
+    <!-- BOTTOM NAVIGATION BAR FOR MOBILE (3 MENU UTAMA) -->
+    <nav class="lg:hidden mobile-bottom-nav">
+        <button id="mobile_tab_overview" onclick="switchMenu('overview')" class="mobile-nav-btn active">
+            <svg class="w-5 h-5 mb-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path></svg>
+            <span>Overview & Log</span>
+        </button>
+        
+        <button id="mobile_tab_scan" onclick="switchMenu('api_out')" class="mobile-nav-btn">
+            <svg class="w-5 h-5 mb-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg>
+            <span>Scan</span>
+        </button>
+        
+        <button id="mobile_tab_kelola" onclick="switchMenu('database')" class="mobile-nav-btn">
+            <svg class="w-5 h-5 mb-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path></svg>
+            <span>Kelola</span>
+        </button>
+    </nav>
 
     <!-- JAVASCRIPT LOGIC -->
     <script>
@@ -917,6 +1024,14 @@
         async function enterApp(user) {
             currentUser = user;
             document.getElementById('login_modal').classList.add('hidden');
+            // Setel nama & role di header HP
+            if (document.getElementById('mobile_user_name')) {
+                document.getElementById('mobile_user_name').textContent = user.nama_lengkap;
+                document.getElementById('mobile_user_role').textContent = user.role.toUpperCase();
+            }
+            
+            setupPermissions(); 
+            switchMenu('overview');
             setupPermissions(); switchMenu('overview');
             if (syncDrainTimer) clearInterval(syncDrainTimer);
             try {
@@ -1015,10 +1130,19 @@
             if (!sidebar.classList.contains('-translate-x-full')) {
                 toggleSidebar();
             }
-
+            // 1. UPDATE TOMBOL SIDEBAR AKTIF (DESKTOP)
             document.querySelectorAll('.sidebar-btn').forEach(btn => btn.classList.remove('active'));
             if (document.getElementById(`nav_${menuKey}`)) document.getElementById(`nav_${menuKey}`).classList.add('active');
 
+            // 2. UPDATE TOMBOL BOTTOM NAV AKTIF (HP)
+            document.querySelectorAll('.mobile-nav-btn').forEach(btn => btn.classList.remove('active'));
+            if (menuKey === 'overview') {
+                document.getElementById('mobile_tab_overview')?.classList.add('active');
+            } else if (['api_out', 'api_in', 'customer_out', 'customer_in', 'vendor_in', 'vendor_out'].includes(menuKey)) {
+                document.getElementById('mobile_tab_scan')?.classList.add('active');
+            } else if (['database', 'users', 'qrcode'].includes(menuKey)) {
+                document.getElementById('mobile_tab_kelola')?.classList.add('active');
+            }
             const oldScanner = currentScanner;
             currentScanner = null;
             if (oldScanner) {try {await oldScanner.clear();} catch(error) {}}
@@ -2442,4 +2566,19 @@
     });
     </script>
 </body>
+    <!-- BOTTOM NAVIGATION BAR UNTUK HP (MOBILE) -->
+    <div class="mobile-bottom-nav md:hidden">
+        <button id="mnav_overview" onclick="switchMenu('overview')" class="mobile-nav-item active">
+            <span class="text-base">📊</span>
+            <span>Overview</span>
+        </button>
+        <button id="mnav_scan" onclick="switchMenu('api_out')" class="mobile-nav-item">
+            <span class="text-base">📷</span>
+            <span>Scan</span>
+        </button>
+        <button id="mnav_kelola" onclick="switchMenu('database')" class="mobile-nav-item">
+            <span class="text-base">⚙️</span>
+            <span>Kelola</span>
+        </button>
+    </div>
 </html>
