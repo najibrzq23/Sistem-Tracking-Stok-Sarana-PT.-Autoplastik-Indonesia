@@ -485,10 +485,11 @@ def database(
     request: Request,
     background_tasks: BackgroundTasks,
     include_master: bool = True,
+    start_date: str = None,
+    end_date: str = None,
 ):
     require(
-        not include_master
-        or request.state.role == 'admin',
+        not include_master or request.state.role == 'admin',
         'Master data khusus admin.',
         403,
     )
@@ -497,12 +498,22 @@ def database(
         master = (
             [
                 unit_dict(unit)
-                for unit in session.query(Sarana)
-                .order_by(Sarana.ID_Sarana)
+                for unit in session.query(Sarana).order_by(Sarana.ID_Sarana)
             ]
             if include_master
             else []
         )
+
+        # Filter Query Log Scan Berdasarkan Rentang Tanggal
+        query = session.query(LogScan)
+        
+        if start_date:
+            s_date = datetime.datetime.strptime(start_date, '%Y-%m-%d')
+            query = query.filter(LogScan.Waktu_Scan >= s_date)
+            
+        if end_date:
+            e_date = datetime.datetime.strptime(end_date, '%Y-%m-%d') + datetime.timedelta(days=1)
+            query = query.filter(LogScan.Waktu_Scan < e_date)
 
         logs = [
             {
@@ -511,13 +522,9 @@ def database(
                 'Alur_Scan': escaped(log.Alur_Scan),
                 'Vendor': escaped(log.Vendor or '-'),
                 'Customer': escaped(log.Customer or ''),
-                'Waktu_Scan': log.Waktu_Scan.strftime(
-                    '%Y-%m-%d %H:%M:%S'
-                ),
+                'Waktu_Scan': log.Waktu_Scan.strftime('%Y-%m-%d %H:%M:%S'),
             }
-            for log in session.query(LogScan)
-            .order_by(LogScan.id.desc())
-            .limit(500)
+            for log in query.order_by(LogScan.id.desc()).limit(1000)
         ]
 
     return {

@@ -179,7 +179,8 @@ button:disabled { opacity: .55; cursor: not-allowed; }
     <link rel="apple-touch-icon" href="/static/apple-touch-icon.png">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="mobile-web-app-capable" content="yes">
-    <meta name="apple-mobile-web-app-title" content="API TRACK">    
+    <meta name="apple-mobile-web-app-title" content="API TRACK">
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>    
 </head>
 <body class="min-h-screen flex flex-col relative overflow-x-hidden">
 
@@ -339,13 +340,24 @@ button:disabled { opacity: .55; cursor: not-allowed; }
                 </div>
 
                 <div class="dark-card p-6 rounded-2xl border border-gray-800 shadow-xl space-y-4">
-                    <div class="flex justify-between items-center border-b border-gray-800 pb-3">
+                    <div class="flex flex-wrap justify-between items-center border-b border-gray-800 pb-3 gap-3">
                         <h3 class="text-sm font-bold text-white uppercase tracking-wider flex items-center gap-2">
                             📜 Seluruh Audit Log Pemindaian Real-Time
                         </h3>
-                        <span id="total_log_badge" class="text-xs bg-gray-800 text-blue-400 font-semibold px-3 py-1 rounded-full border border-gray-700">0 Transaksi</span>
+                        
+                        <!-- Filter Range Tanggal & Ekspor Excel -->
+                        <div class="flex flex-wrap items-center gap-2">
+                            <input type="date" id="log_start_date" onchange="loadAuditLogs()" class="bg-gray-900 border border-gray-700 rounded-xl px-3 py-1.5 text-xs text-white focus:outline-none focus:border-blue-500">
+                            <span class="text-xs text-gray-400">s/d</span>
+                            <input type="date" id="log_end_date" onchange="loadAuditLogs()" class="bg-gray-900 border border-gray-700 rounded-xl px-3 py-1.5 text-xs text-white focus:outline-none focus:border-blue-500">
+                            <button onclick="resetLogFilter()" class="bg-gray-800 hover:bg-gray-700 text-cyan-400 border border-gray-700 px-3 py-1.5 rounded-xl text-xs font-bold transition">
+                                Sekarang
+                            </button>
+                            <button onclick="exportLogsToExcel()" class="bg-emerald-600 hover:bg-emerald-500 text-white font-bold px-3 py-1.5 rounded-xl text-xs transition shadow-md flex items-center gap-1">
+                                📊 Ekspor Excel
+                            </button>
+                        </div>
                     </div>
-
                     <div class="overflow-x-auto overflow-y-auto max-h-[380px] rounded-xl border border-gray-800 bg-gray-900/30">
                         <table class="w-full text-left border-collapse text-xs">
                             <thead class="sticky top-0 bg-gray-900 z-10">
@@ -1065,43 +1077,65 @@ button:disabled { opacity: .55; cursor: not-allowed; }
 
         async function loadAuditLogs() {
             try {
-            const res = await fetch('/api/admin/database?include_master=false');
-            const data = await res.json();
-            const lBody = document.getElementById('overview_logs_body');
-            const logBadge = document.getElementById('total_log_badge');
-        
-            if (!data.logs || data.logs.length === 0) {
-                lBody.innerHTML = `<tr><td colspan="5" class="py-4 text-center text-gray-500">Belum ada log pemindaian.</td></tr>`;
-                logBadge.innerText = `0 Transaksi`;}
-            else{
-                logBadge.innerText = `${data.logs.length} Transaksi Terbaru (maks. 500)`;
-                lBody.innerHTML = data.logs.map((l, index) => `
-                <tr class="hover:bg-gray-800/50 transition">
-                    <td class="py-3 px-4 text-gray-500 font-mono">#${data.logs.length - index}</td>
-                    <td class="py-3 px-4 font-mono text-cyan-400 font-bold">${l.ID_Sarana}</td>
-                    <td class="py-3 px-4">
-                        <span class="px-2.5 py-1 rounded-md bg-blue-950 text-blue-300 font-semibold text-[11px] border border-blue-900">
-                            ${l.Alur_Scan}
-                        </span>
-                    </td>
-                    <td class="py-3 px-4 font-bold text-amber-400">${l.Customer || l.Vendor || '-'}</td>
-                    <td class="py-3 px-4 text-gray-400 font-mono text-[11px]">${l.Waktu_Scan}</td>
-                </tr>
-            `).join('');}}
-            catch(e) {
-                console.error("Error load audit logs:", e); throw e;}}
+                const start = document.getElementById('log_start_date').value;
+                const end = document.getElementById('log_end_date').value;
+                
+                let url = '/api/admin/database?include_master=false';
+                if (start) url += `&start_date=${start}`;
+                if (end) url += `&end_date=${end}`;
 
-        const scanAccessLabels = {
-            '1': 'PT API ke Vendor',
-            '2': 'Vendor Inbound',
-            '3': 'Vendor Outbound',
-            '4': 'PT API dari Vendor',
-            '5': 'PT API ke Customer',
-            '6': 'PT API dari Customer'
-        };
+                const res = await fetch(url);
+                const data = await res.json();
+                const lBody = document.getElementById('overview_logs_body');
+                
+                if (!data.logs || data.logs.length === 0) {
+                    lBody.innerHTML = `<tr><td colspan="5" class="py-4 text-center text-gray-500">Belum ada log pemindaian pada rentang tanggal ini.</td></tr>`;
+                } else {
+                    lBody.innerHTML = data.logs.map((l, index) => `
+                        <tr class="hover:bg-gray-800/50 transition">
+                            <td class="py-3 px-4 text-gray-500 font-mono">#${l.id}</td>
+                            <td class="py-3 px-4 font-mono text-cyan-400 font-bold">${l.ID_Sarana}</td>
+                            <td class="py-3 px-4">
+                                <span class="px-2.5 py-1 rounded-md bg-blue-950 text-blue-300 font-semibold text-[11px] border border-blue-900">
+                                    ${l.Alur_Scan}
+                                </span>
+                            </td>
+                            <td class="py-3 px-4 font-bold text-amber-400">${l.Customer || l.Vendor || '-'}</td>
+                            <td class="py-3 px-4 text-gray-400 font-mono text-[11px]">${l.Waktu_Scan}</td>
+                        </tr>
+                    `).join('');
+                }
+            } catch(e) {
+                console.error("Error load audit logs:", e);
+            }
+        }
 
-        let userAccessRows = new Map();
-        let masterRows = [];
+        // Fungsi tombol "Sekarang" (Reset Filter)
+        function resetLogFilter() {
+            document.getElementById('log_start_date').value = '';
+            document.getElementById('log_end_date').value = '';
+            loadAuditLogs();
+        }
+
+        // Fungsi Ekspor Excel (Wajib Pilih Range Tanggal)
+        function exportLogsToExcel() {
+            const start = document.getElementById('log_start_date').value;
+            const end = document.getElementById('log_end_date').value;
+
+            if (!start || !end) {
+                Swal.fire({
+                    icon: 'warning',
+                    title: 'Pilih Range Tanggal',
+                    text: 'Silakan pilih tanggal awal dan tanggal akhir terlebih dahulu untuk mengekspor data ke Excel.',
+                    customClass: { popup: 'dark-swal' }
+                });
+                return;
+            }
+
+            const table = document.querySelector("#view_overview table");
+            const wb = XLSX.utils.table_to_book(table, { sheet: "Log Scan" });
+            XLSX.writeFile(wb, `Log_Scan_Sarana_${start}_s.d_${end}.xlsx`);
+        }
 
         async function trackingRequest(url, options = {}) {
             const response = await fetch(url, options);
