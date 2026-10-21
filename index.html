@@ -1126,26 +1126,52 @@ button:disabled { opacity: .55; cursor: not-allowed; }
                 Swal.fire({
                     icon: 'warning',
                     title: 'Pilih Range Tanggal',
-                    text: 'Silakan pilih tanggal awal dan tanggal akhir terlebih dahulu untuk mengekspor data ke Excel.',
+                    text: 'Silakan pilih tanggal awal dan tanggal akhir terlebih dahulu untuk mengekspor data log ke Excel.',
                     customClass: { popup: 'dark-swal' }
                 });
                 return;
             }
 
-            const table = document.querySelector("#view_overview table");
-            const wb = XLSX.utils.table_to_book(table, { sheet: "Log Scan" });
-            XLSX.writeFile(wb, `Log_Scan_Sarana_${start}_s.d_${end}.xlsx`);
-        }
+            // Ambil baris data dari tabel audit log (overview_logs_body)
+            const logRows = document.querySelectorAll("#overview_logs_body tr");
+            
+            // Siapkan array data untuk Sheet Excel
+            const excelData = [];
+            
+            // Header Kolom Excel
+            excelData.push(["Log ID", "ID Sarana", "Alur / Event Scan", "Vendor / Customer", "Waktu Pemindaian"]);
 
-        async function trackingRequest(url, options = {}) {
-            const response = await fetch(url, options);
-            const data = await response.json();
+            logRows.forEach(row => {
+                const cells = row.querySelectorAll("td");
+                // Pastikan bukan baris kosong ("Belum ada log...")
+                if (cells.length >= 5) {
+                    excelData.push([
+                        cells[0].innerText.trim(), // Log ID
+                        cells[1].innerText.trim(), // ID Sarana
+                        cells[2].innerText.trim(), // Alur Scan
+                        cells[3].innerText.trim(), // Vendor / Customer
+                        cells[4].innerText.trim()  // Waktu Pemindaian
+                    ]);
+                }
+            });
 
-            if (!response.ok) {
-                throw new Error(data.message || 'Permintaan gagal.');
+            if (excelData.length <= 1) {
+                Swal.fire({
+                    icon: 'info',
+                    title: 'Data Kosong',
+                    text: 'Tidak ada data log pemindaian pada rentang tanggal yang dipilih.',
+                    customClass: { popup: 'dark-swal' }
+                });
+                return;
             }
 
-            return data;
+            // Buat Workbook dan Sheet Excel
+            const worksheet = XLSX.utils.aoa_to_sheet(excelData);
+            const workbook = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(workbook, worksheet, "Log Scan");
+
+            // Unduh file Excel
+            XLSX.writeFile(workbook, `Log_Scan_Sarana_${start}_s.d_${end}.xlsx`);
         }
         function accessFields(prefix, permissions) {
             return `
