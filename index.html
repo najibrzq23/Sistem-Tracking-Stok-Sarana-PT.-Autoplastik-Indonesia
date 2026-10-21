@@ -57,161 +57,176 @@
             }
         }
 
-/* Mengatur Layout Grid Label (Contoh: 3 Kolom) */
-.qr-grid-container {
-    display: grid;
-    grid-template-columns: repeat(3, 1fr); /* Ubah ke repeat(4, 1fr) jika ingin 4 kolom */
-    gap: 8mm 6mm;                          /* Jarak antar stiker label (Atas-Bawah & Kiri-Kanan) */
-}
+        /* Mengatur Layout Grid Label (Contoh: 3 Kolom) */
+        .qr-grid-container {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr); /* Ubah ke repeat(4, 1fr) jika ingin 4 kolom */
+            gap: 8mm 6mm;                          /* Jarak antar stiker label (Atas-Bawah & Kiri-Kanan) */
+        }
 
-/* Styling Kartu Stiker / Label QR Code */
-.qr-label-card {
-    border: 1px dashed #666666; /* Garis abu-abu putus-putus untuk panduan gunting */
-    border-radius: 4px;
-    padding: 6px;
-    background: #ffffff;
-}
-/* Responsive layout — screen only, preserves A4 print layout. */
-[hidden] { display: none !important; }
-main, main .grid > *, main .flex > * { min-width: 0; }
-button, a, input, select, textarea { touch-action: manipulation; }
-button:focus-visible, a:focus-visible { outline: 2px solid #60a5fa; outline-offset: 3px; }
-button:disabled { opacity: .55; cursor: not-allowed; }
-#sidebar { width: min(288px, 88vw); }
-#sidebar button { min-height: 44px; }
-#reader_container video { max-width: 100%; }
-#sync_text { overflow-wrap: anywhere; }
-.mobile-table-scroll { overscroll-behavior: contain; }
-@media screen and (min-width: 1024px) {
-    #sidebar { transform: translateX(0) !important; width: 272px; }
-    #sidebar_overlay { display: none !important; }
-    main { margin-left: 272px; width: calc(100% - 272px) !important; }
-    button[onclick="toggleSidebar()"] { display: none; }
-}
-@media screen and (max-width: 767px) {
-    main { padding: 12px !important; padding-bottom: max(24px, env(safe-area-inset-bottom)) !important; }
-    main .dark-card { padding: 16px; }
-    main .dark-card:has(> .mobile-table-scroll) { padding: 0; }
-    main h2 { font-size: 19px !important; line-height: 1.4; overflow-wrap: anywhere; }
-    main h3 { line-height: 1.5; }
-    main p, main label, #sidebar .sidebar-btn { font-size: 14px !important; line-height: 1.5; }
-    main button, main a, #sidebar button { min-height: 44px; font-size: 14px !important; }
-    main input, main select, main textarea,
-    [id$="_modal"] input, [id$="_modal"] select, [id$="_modal"] textarea {
-        font-size: 16px !important; min-height: 48px; max-width: 100%;
-    }
-    main .flex { flex-wrap: wrap; }
-    main button[onclick="toggleSidebar()"] { flex: 0 0 44px; }
-    #view_database .space-y-3 > .flex > .flex {
-        width: 100%; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr));
-    }
-    #view_database .space-y-3 > .flex > .flex > * {
-        width: 100%; justify-content: center; text-align: center; padding: 10px 8px;
-    }
-    #view_qrcode select { width: 100%; }
-    [id$="_modal"] { overflow-y: auto; padding: 12px !important; align-items: flex-start; }
-    [id$="_modal"] > .dark-card {
-        margin: auto; max-height: calc(100dvh - 24px); overflow-y: auto; padding: 20px !important;
-    }
-    [id$="_modal"] button { min-height: 44px; }
-    .swal2-popup { width: calc(100vw - 24px) !important; padding: 16px !important; }
-    .mobile-table-scroll { max-height: 65dvh !important; overflow: auto; padding: 12px; }
-    .responsive-table, .responsive-table tbody { display: block; width: 100%; }
-    .responsive-table thead { display: none; }
-    .responsive-table tbody { display: grid; gap: 12px; border: none; }
-    .responsive-table tbody tr {
-        display: block; background: #111b2c; border: 1px solid #334155 !important;
-        border-radius: 14px; padding: 8px 12px; min-width: 0;
-    }
-    .responsive-table tbody td {
-        display: grid !important; grid-template-columns: minmax(90px, .8fr) minmax(0, 1.2fr);
-        align-items: start; gap: 12px; padding: 10px 0 !important; font-size: 14px !important;
-        line-height: 1.5; text-align: left !important; overflow-wrap: anywhere;
-    }
-    .responsive-table tbody td + td { border-top: 1px solid #253247; }
-    .responsive-table tbody td::before {
-        content: attr(data-label); color: #94a3b8; font: 500 12px/1.6 ui-sans-serif, system-ui;
-    }
-    .responsive-table tbody td > * { min-width: 0; max-width: 100%; white-space: normal; }
-    .responsive-table tbody td[colspan] { display: block !important; text-align: center !important; }
-    .responsive-table tbody td[colspan]::before { display: none; }
-    #table_body td:first-child > span { display: none; }
-    #reader_container { min-height: 240px; }
-    #reader_container button { min-height: 44px; }
-    #view_qrcode #a4_preview_wrapper { min-width: 680px; }
-    #view_qrcode .overflow-x-auto { justify-content: flex-start; padding: 12px; }
-}
-@media (prefers-reduced-motion: reduce) {
-    #sidebar { transition: none; }
-}
+        /* Styling Kartu Stiker / Label QR Code */
+        .qr-label-card {
+            border: 1px dashed #666666; /* Garis abu-abu putus-putus untuk panduan gunting */
+            border-radius: 4px;
+            padding: 6px;
+            background: #ffffff;
+        }
+        /* Responsive layout — screen only, preserves A4 print layout. */
+        [hidden] { display: none !important; }
+        main, main .grid > *, main .flex > * { min-width: 0; }
+        button, a, input, select, textarea { touch-action: manipulation; }
+        button:focus-visible, a:focus-visible { outline: 2px solid #60a5fa; outline-offset: 3px; }
+        button:disabled { opacity: .55; cursor: not-allowed; }
+        #sidebar { width: min(288px, 88vw); }
+        #sidebar button { min-height: 44px; }
+        #reader_container video { max-width: 100%; }
+        #sync_text { overflow-wrap: anywhere; }
+        .mobile-table-scroll { overscroll-behavior: contain; }
+        @media screen and (min-width: 1024px) {
+            #sidebar { transform: translateX(0) !important; width: 272px; }
+            #sidebar_overlay { display: none !important; }
+            main { margin-left: 272px; width: calc(100% - 272px) !important; }
+            button[onclick="toggleSidebar()"] { display: none; }
+        }
+        @media screen and (max-width: 767px) {
+            main { padding: 12px !important; padding-bottom: max(24px, env(safe-area-inset-bottom)) !important; }
+            main .dark-card { padding: 16px; }
+            main .dark-card:has(> .mobile-table-scroll) { padding: 0; }
+            main h2 { font-size: 19px !important; line-height: 1.4; overflow-wrap: anywhere; }
+            main h3 { line-height: 1.5; }
+            main p, main label, #sidebar .sidebar-btn { font-size: 14px !important; line-height: 1.5; }
+            main button, main a, #sidebar button { min-height: 44px; font-size: 14px !important; }
+            main input, main select, main textarea,
+            [id$="_modal"] input, [id$="_modal"] select, [id$="_modal"] textarea {
+                font-size: 16px !important; min-height: 48px; max-width: 100%;
+            }
+            main .flex { flex-wrap: wrap; }
+            main button[onclick="toggleSidebar()"] { flex: 0 0 44px; }
+            #view_database .space-y-3 > .flex > .flex {
+                width: 100%; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr));
+            }
+            #view_database .space-y-3 > .flex > .flex > * {
+                width: 100%; justify-content: center; text-align: center; padding: 10px 8px;
+            }
+            #view_qrcode select { width: 100%; }
+            [id$="_modal"] { overflow-y: auto; padding: 12px !important; align-items: flex-start; }
+            [id$="_modal"] > .dark-card {
+                margin: auto; max-height: calc(100dvh - 24px); overflow-y: auto; padding: 20px !important;
+            }
+            [id$="_modal"] button { min-height: 44px; }
+            .swal2-popup { width: calc(100vw - 24px) !important; padding: 16px !important; }
+            .mobile-table-scroll { max-height: 65dvh !important; overflow: auto; padding: 12px; }
+            .responsive-table, .responsive-table tbody { display: block; width: 100%; }
+            .responsive-table thead { display: none; }
+            .responsive-table tbody { display: grid; gap: 12px; border: none; }
+            .responsive-table tbody tr {
+                display: block; background: #111b2c; border: 1px solid #334155 !important;
+                border-radius: 14px; padding: 8px 12px; min-width: 0;
+            }
+            .responsive-table tbody td {
+                display: grid !important; grid-template-columns: minmax(90px, .8fr) minmax(0, 1.2fr);
+                align-items: start; gap: 12px; padding: 10px 0 !important; font-size: 14px !important;
+                line-height: 1.5; text-align: left !important; overflow-wrap: anywhere;
+            }
+            .responsive-table tbody td + td { border-top: 1px solid #253247; }
+            .responsive-table tbody td::before {
+                content: attr(data-label); color: #94a3b8; font: 500 12px/1.6 ui-sans-serif, system-ui;
+            }
+            .responsive-table tbody td > * { min-width: 0; max-width: 100%; white-space: normal; }
+            .responsive-table tbody td[colspan] { display: block !important; text-align: center !important; }
+            .responsive-table tbody td[colspan]::before { display: none; }
+            #table_body td:first-child > span { display: none; }
+            #reader_container { min-height: 240px; }
+            #reader_container button { min-height: 44px; }
+            #view_qrcode #a4_preview_wrapper { min-width: 680px; }
+            #view_qrcode .overflow-x-auto { justify-content: flex-start; padding: 12px; }
+        }
+        @media (prefers-reduced-motion: reduce) {
+            #sidebar { transition: none; }
+        }
 
+        #scan_feedback { overflow-wrap: anywhere; min-height: 48px; }
+        #reader_container video { width: 100% !important; object-fit: cover; }
+        @media screen and (max-width:767px) {
+            #station_submit_btn { min-height:48px; }
+            #station_id_input { width:100%; }
+        }
+        @media screen and (min-width:1024px) {
+            body.overview-mode #sidebar { transform:translateX(-100%) !important; }
+            body.overview-mode.sidebar-open #sidebar { transform:translateX(0) !important; }
+            body.overview-mode main { margin-left:0; width:100% !important; }
+            body.overview-mode button[onclick="toggleSidebar()"] { display:inline-flex; }
+            body.overview-mode #sidebar_overlay:not(.hidden) { display:block !important; }
+        }
+        .swal2-popup select,
+        .swal2-popup select option {
+            color: #111827 !important;
+            background: #ffffff !important;
+        }
 
-#scan_feedback { overflow-wrap: anywhere; min-height: 48px; }
-#reader_container video { width: 100% !important; object-fit: cover; }
-@media screen and (max-width:767px) {
-    #station_submit_btn { min-height:48px; }
-    #station_id_input { width:100%; }
-}
-@media screen and (min-width:1024px) {
-    body.overview-mode #sidebar { transform:translateX(-100%) !important; }
-    body.overview-mode.sidebar-open #sidebar { transform:translateX(0) !important; }
-    body.overview-mode main { margin-left:0; width:100% !important; }
-    body.overview-mode button[onclick="toggleSidebar()"] { display:inline-flex; }
-    body.overview-mode #sidebar_overlay:not(.hidden) { display:block !important; }
-}
-.swal2-popup select,
-.swal2-popup select option {
-    color: #111827 !important;
-    background: #ffffff !important;
-}
+        #station_vendor option,
+        #station_customer option {
+            color: #111827;
+            background: #ffffff;
+        }
 
-#station_vendor option,
-#station_customer option {
-    color: #111827;
-    background: #ffffff;
-}
+        /* Styling Kapsul Filter Tanggal Solid */
+        .filter-capsule {
+            background-color: #1a2332;
+            border: 1px solid #2b394e;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
+        }
+        .filter-capsule:focus-within {
+            border-color: #3b82f6;
+            box-shadow: 0 0 10px rgba(59, 130, 246, 0.3);
+        }
 
-/* Styling Kapsul Filter Tanggal Solid */
-.filter-capsule {
-    background-color: #1a2332;
-    border: 1px solid #2b394e;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
-}
-.filter-capsule:focus-within {
-    border-color: #3b82f6;
-    box-shadow: 0 0 10px rgba(59, 130, 246, 0.3);
-}
+        /* Custom Ikon Kalender Warna Terang */
+        input[type="date"]::-webkit-calendar-picker-indicator {
+            filter: invert(0.8) sepia(1) saturate(5) hue-rotate(180deg);
+            cursor: pointer;
+        }
 
-/* Custom Ikon Kalender Warna Terang */
-input[type="date"]::-webkit-calendar-picker-indicator {
-    filter: invert(0.8) sepia(1) saturate(5) hue-rotate(180deg);
-    cursor: pointer;
-}
+        /* Animasi Kelap-Kelip Peringatan Selisih */
+        @keyframes warning-glow {
+            0%, 100% { box-shadow: 0 0 8px rgba(239, 68, 68, 0.25), inset 0 0 8px rgba(239, 68, 68, 0.15); border-color: rgba(239, 68, 68, 0.5); }
+            50% { box-shadow: 0 0 18px rgba(239, 68, 68, 0.7), inset 0 0 12px rgba(239, 68, 68, 0.3); border-color: rgba(248, 113, 113, 1); }
+        }
+        .glow-warning { animation: warning-glow 1.8s infinite ease-in-out; }
 
-/* Animasi Kelap-Kelip Peringatan Selisih */
-@keyframes warning-glow {
-    0%, 100% { box-shadow: 0 0 8px rgba(239, 68, 68, 0.25), inset 0 0 8px rgba(239, 68, 68, 0.15); border-color: rgba(239, 68, 68, 0.5); }
-    50% { box-shadow: 0 0 18px rgba(239, 68, 68, 0.7), inset 0 0 12px rgba(239, 68, 68, 0.3); border-color: rgba(248, 113, 113, 1); }
-}
-.glow-warning { animation: warning-glow 1.8s infinite ease-in-out; }
-
-/* Animasi Garis Laser Kamera Scan */
-@keyframes scan-laser {
-    0% { top: 0%; opacity: 0.2; }
-    50% { opacity: 1; }
-    100% { top: 95%; opacity: 0.2; }
-}
-.laser-line {
-    position: absolute;
-    left: 0;
-    right: 0;
-    height: 3px;
-    background: linear-gradient(90deg, transparent, #22c55e, transparent);
-    box-shadow: 0 0 12px #22c55e;
-    animation: scan-laser 2s infinite ease-in-out;
-    z-index: 20;
-}
-
+        /* Animasi Garis Laser Kamera Scan */
+        @keyframes scan-laser {
+            0% { top: 0%; opacity: 0.2; }
+            50% { opacity: 1; }
+            100% { top: 95%; opacity: 0.2; }
+        }
+        .laser-line {
+            position: absolute;
+            left: 0;
+            right: 0;
+            height: 3px;
+            background: linear-gradient(90deg, transparent, #22c55e, transparent);
+            box-shadow: 0 0 12px #22c55e;
+            animation: scan-laser 2s infinite ease-in-out;
+            z-index: 20;
+        }
+        /* Merapikan dropdown kamera Html5Qrcode agar tidak muncul kotak putih panjang */
+        #reader_container select {
+            background-color: #111827 !important;
+            color: #ffffff !important;
+            border: 1px solid #374151 !important;
+            border-radius: 0.5rem !important;
+            padding: 0.5rem 1rem !important;
+            max-width: 90% !important;
+            margin: 0.5rem auto !important;
+            display: block !important;
+        }
+        /* Menyembunyikan tombol/elemen opsional library jika tidak diperlukan */
+        #reader_container_dashboard_section_csr button {
+            background-color: #1f2937 !important;
+            color: #ffffff !important;
+            border-radius: 0.5rem !important;
+        }
     </style>
     <!-- Pengaturan PWA -->
     <link rel="manifest" href="/static/manifest.webmanifest">
@@ -957,6 +972,17 @@ input[type="date"]::-webkit-calendar-picker-indicator {
         let dashboardInterval = null; // Variabel untuk menyimpan timer auto-refresh
 
         let stationGeneration = 0;
+        
+        // FUNGSI HELPER UNTUK FETCH REQUEST KE BACKEND
+        async function trackingRequest(url, options = {}) {
+            const response = await fetch(url, options);
+            const data = await response.json();
+            if (!response.ok) {
+                throw new Error(data.message || 'Permintaan gagal.');
+            }
+            return data;
+        }
+        
         async function switchMenu(menuKey) {
             const selected = menuConfigs[menuKey];
             if (
@@ -1126,7 +1152,7 @@ input[type="date"]::-webkit-calendar-picker-indicator {
                 Swal.fire({ icon: 'error', title: 'Terputus', text: 'Gagal terhubung ke backend!', customClass: { popup: 'dark-swal' } });
             }
         }
-        
+
         async function loadAuditLogs() {
             try {
                 const start = document.getElementById('log_start_date').value;
@@ -1478,12 +1504,16 @@ input[type="date"]::-webkit-calendar-picker-indicator {
         }
 
         async function loadAdminMaster() {
-            const data = await trackingRequest(
-                '/api/admin/database'
-            );
-
-            masterRows = data.master || [];
-            renderMasterRows();
+            try {
+                const data = await trackingRequest('/api/admin/database');
+                masterRows = data.master || [];
+                renderMasterRows();
+            } catch (error) {
+                console.error("Gagal memuat master data:", error);
+                document.getElementById('db_master_body').innerHTML = `
+                    <tr><td colspan="7" class="p-4 text-center text-red-400">Gagal memuat master data: ${error.message}</td></tr>
+                `;
+            }
         }
 
         async function refreshMasterData() {
@@ -1526,10 +1556,10 @@ input[type="date"]::-webkit-calendar-picker-indicator {
                 const res = await fetch('/api/admin/users');
                 const data = await res.json();
                 if (!res.ok) throw new Error(data.message);
-                userAccessRows = new Map(
-                    data.users.map(user => [user.id, user])
-                );
+
+                userAccessRows = new Map(data.users.map(user => [user.id, user]));
                 await prepareRegistrationAccess();
+
                 const uBody = document.getElementById('db_users_body');
                 const userBadge = document.getElementById('total_user_badge');
 
@@ -1552,20 +1582,12 @@ input[type="date"]::-webkit-calendar-picker-indicator {
                                 <td class="py-3 px-3 font-mono font-bold text-amber-400">${u.npk}</td>
                                 <td class="py-3 px-3 text-white font-bold">${u.nama_lengkap}</td>
                                 <td class="py-3 px-3 font-mono text-cyan-400">${u.username}</td>
-                                
                                 <td class="py-3 px-3 text-gray-300">${u.jabatan}</td>
                                 <td class="py-3 px-3 text-center">${roleBadge}</td>
                                 <td class="py-3 px-3 text-center">
                                     <div class="flex flex-wrap gap-2 justify-center"> 
-                                        <button onclick="resetUserPassword(${u.id}, '${u.username}')" class="bg-blue-500/10 hover:bg-blue-500/20 text-blue-300 border border-blue-500/30 px-3 py-2 rounded-lg text-xs font-bold">
-                                            🔑 Reset Password
-                                        </button>
-                                        ${u.role === 'member' ? `
-                                            <button onclick="editScanAccess(${u.id})"
-                                                class="bg-cyan-900 text-cyan-200 px-3 py-2 rounded-lg text-xs">
-                                                Izin Scan
-                                            </button>
-                                        ` : ''}
+                                        <button onclick="resetUserPassword(${u.id}, '${u.username}')" class="bg-blue-500/10 hover:bg-blue-500/20 text-blue-300 border border-blue-500/30 px-3 py-2 rounded-lg text-xs font-bold">🔑 Reset Password</button>
+                                        ${u.role === 'member' ? `<button onclick="editScanAccess(${u.id})" class="bg-cyan-900 text-cyan-200 px-3 py-2 rounded-lg text-xs">Izin Scan</button>` : ''}
                                         ${actionBtn}
                                     </div>
                                 </td>
