@@ -69,6 +69,20 @@ async def access_control(request: Request, call_next):
     response.headers['X-Content-Type-Options'] = 'nosniff'
     response.headers['Referrer-Policy'] = 'same-origin'
     response.headers['X-Frame-Options'] = 'DENY'
+    response.headers['Content-Security-Policy'] = (
+        "default-src 'self' blob: data:; "
+        "script-src 'self' 'unsafe-inline' 'unsafe-eval' "
+        "https://cdn.tailwindcss.com https://unpkg.com "
+        "https://cdn.jsdelivr.net https://cdnjs.cloudflare.com; "
+        "style-src 'self' 'unsafe-inline' https://cdn.tailwindcss.com; "
+        "img-src 'self' data: blob:; "
+        "font-src 'self' data:; "
+        "connect-src 'self'; "
+        "media-src 'self' blob:; "
+        "worker-src 'self' blob:; "
+        "object-src 'none'; base-uri 'self'; form-action 'self'; "
+        "frame-ancestors 'none'"
+    )
     return response
 
 # Terluar, agar request.session tersedia di middleware akses.
@@ -81,11 +95,54 @@ async def http_error(request, exc):
 
 @app.exception_handler(Exception)
 async def server_error(request, exc):
+    logging.getLogger('uvicorn.error').error(
+        'unhandled error method=%s path=%s',
+        request.method,
+        request.url.path,
+        exc_info=exc,
+    )
     return JSONResponse({'status':'error','message':'Permintaan gagal. Periksa log server tanpa membagikan kredensial.'}, status_code=500)
 
 def require(condition, message, code=400):
     if not condition:
         raise HTTPException(code, message)
+
+LOGIN_WINDOW = datetime.timedelta(minutes=15)
+LOGIN_USER_LIMIT = 5
+LOGIN_IP_LIMIT = 30
+LOGIN_GLOBAL_LIMIT = 200
+
+def _login_attempt_key(prefix, value):
+    return prefix + hashlib.sha256(value.encode()).hexdigest()
+
+def _login_attempt(session, key):
+    attempt = session.get(LoginAttempt, key)
+    if not attempt:
+        attempt = LoginAttempt(
+            key=key,
+            count=0,
+            window_start=now(),
+        )
+        session.add(attempt)
+    elif (
+        attempt.window_start is None
+        or now() - attempt.window_start > LOGIN_WINDOW
+    ):
+        attempt.count = 0
+        attempt.window_start = now()
+    return attempt
+
+def _login_allowed(attempt, limit):
+    require(
+        attempt.count < limit,
+        'Terlalu banyak percobaan. Coba lagi setelah 15 menit.',
+        429,
+    )
+
+def _cleanup_login_attempts(session):
+    session.query(LoginAttempt).filter(
+        LoginAttempt.window_start < now() - datetime.timedelta(days=1)
+    ).delete(synchronize_session=False)
 
 SCAN_LABELS = {
     '1': 'PT API ke Vendor',
@@ -346,20 +403,38 @@ def health():
 def login(request:Request, username:str=Form(...), password:str=Form(...)):
     username=username.strip()
     require(len(username)<=100 and len(password)<=256, 'Username atau password tidak valid.')
-    key=hashlib.sha256(username.lower().encode()).hexdigest()
+
+    client_ip = (
+        request.client.host
+        if request.client and request.client.host
+        else 'unknown'
+    )
+    user_key = _login_attempt_key('user:', username.lower())
+    ip_key = _login_attempt_key('ip:', client_ip)
+    global_key = 'global-login'
+
     with SessionLocal() as session:
         lock_writes(session)
-        attempt=session.get(LoginAttempt,key)
-        if not attempt:
-            attempt=LoginAttempt(key=key,count=0,window_start=now());session.add(attempt)
-        if (now()-attempt.window_start).total_seconds()>900:
-            attempt.count=0;attempt.window_start=now()
-        require(attempt.count<5,'Terlalu banyak percobaan. Coba lagi setelah 15 menit.',429)
+        _cleanup_login_attempts(session)
+
+        user_attempt = _login_attempt(session, user_key)
+        ip_attempt = _login_attempt(session, ip_key)
+        global_attempt = _login_attempt(session, global_key)
+
+        _login_allowed(user_attempt, LOGIN_USER_LIMIT)
+        _login_allowed(ip_attempt, LOGIN_IP_LIMIT)
+        _login_allowed(global_attempt, LOGIN_GLOBAL_LIMIT)
+
         user=session.query(User).filter_by(username=username).first()
         if not user or not verify_password(password,user.password):
-            attempt.count+=1;session.commit()
+            user_attempt.count += 1
+            ip_attempt.count += 1
+            global_attempt.count += 1
+            session.commit()
             raise HTTPException(401,'Username atau password salah.')
-        attempt.count=0;session.commit()
+
+        user_attempt.count=0
+        session.commit()
         request.session.clear();request.session['user_id']=user.id
         request.session['credential_tag']=hashlib.sha256(user.password.encode()).hexdigest()
         return {'status':'success','user':public_user(user)}
@@ -631,6 +706,7 @@ def users():
 
 @app.post('/api/admin/users/create')
 def create_user(
+    request: Request,
     nama_lengkap: str = Form(...),
     username: str = Form(...),
     npk: str = Form(...),
@@ -690,6 +766,11 @@ def create_user(
             scan_permissions=permissions,
             vendor_scope=scope,
         ))
+        session.add(AccountAudit(
+            actor=request.state.actor,
+            target_username=username,
+            event='CREATE_USER',
+        ))
 
         session.commit()
 
@@ -730,6 +811,11 @@ def delete_user(user_id:int,request:Request):
         require(user is not None,'Akun tidak ditemukan.',404)
         require(user.username!=PRIMARY_ADMIN and user.id!=request.session['user_id'],'Akun utama atau akun yang sedang dipakai tidak dapat dihapus.')
         if user.role=='admin':require(session.query(User).filter_by(role='admin').count()>1,'Admin terakhir tidak boleh dihapus.')
+        session.add(AccountAudit(
+            actor=request.state.actor,
+            target_username=user.username,
+            event='DELETE_USER',
+        ))
         session.delete(user);session.commit()
     return {'status':'success','message':'Akun dihapus.'}
 
@@ -756,6 +842,12 @@ def add_batch(
         1 <= qty <= 100
         and 0 < len(name) <= 150,
         'Jumlah 1–100 dan nama wajib diisi.',
+    )
+
+    require(
+        configured() or LOCAL_TRIAL,
+        'Integrasi Sheets belum dikonfigurasi.',
+        503,
     )
 
     items = []
@@ -987,6 +1079,11 @@ def scan(
 @app.post('/api/admin/sarana/delete-ng')
 def delete_ng(request:Request,background_tasks:BackgroundTasks,id_sarana:str=Form(...),alasan:str=Form(...)):
     reason=alasan.strip();require(0<len(reason)<=300,'Alasan wajib diisi, maksimal 300 karakter.')
+    require(
+        configured() or LOCAL_TRIAL,
+        'Integrasi Sheets belum dikonfigurasi.',
+        503,
+    )
     with SessionLocal() as session:
         lock_writes(session)
         unit=session.get(Sarana,id_sarana.strip());require(unit is not None,'ID tidak ditemukan.',404)
@@ -1049,21 +1146,30 @@ def unloading_preview(session, actor):
 def preview_unloading(request:Request):
     with SessionLocal() as session:
         require_scan_access(session, request, '2')
-        _, groups, token = unloading_preview(
+        _, details, token = unloading_preview(
             session,
             request.state.actor,
         )
-        for group in groups:
+        for group in details:
             require_scan_access(
                 session,
                 request,
                 '2',
                 group['vendor'],
             )
-    return {'groups':groups, 'token':token, 'missing_count':sum(len(g['missing_ids']) for g in groups)}
+    return {
+        'groups': details,
+        'token': token,
+        'missing_count': sum(len(g['missing_ids']) for g in details),
+    }
 
 @app.post('/api/finish-vendor-unloading')
 def finish_unloading(request:Request, preview_token:str=Form(...)):
+    require(
+        configured() or LOCAL_TRIAL,
+        'Integrasi Sheets belum dikonfigurasi.',
+        503,
+    )
     with SessionLocal() as session:
         lock_writes(session)
         require_scan_access(session, request, '2')

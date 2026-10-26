@@ -787,15 +787,22 @@
         };
         let syncState = null;
         async function loadSyncStatus() {
-            const res = await fetch('/api/sync/status');
-            if (!res.ok) return;
-            syncState = await res.json();
-            const showSyncWarning =
-            !syncState.configured || syncState.pending > 0;
-            document.getElementById('sync_banner').classList.toggle('hidden', !showSyncWarning);
-            document.getElementById('sync_text').textContent = !syncState.configured ? 'Koneksi Sheets belum dikonfigurasi.' :
-                syncState.pending ? `Salinan Sheets: ${syncState.pending} pengiriman belum selesai (${syncState.state}). ${syncState.message}` : 'Salinan perubahan ke Sheets: seluruh pengiriman terkonfirmasi.';
-            document.getElementById('sync_review').classList.toggle('hidden', !syncState.reviewable);}
+            try {
+                const res = await fetch('/api/sync/status');
+                if (!res.ok) return false;
+                syncState = await res.json();
+                const showSyncWarning =
+                    !syncState.configured || syncState.pending > 0;
+                document.getElementById('sync_banner').classList.toggle('hidden', !showSyncWarning);
+                document.getElementById('sync_text').textContent = !syncState.configured ? 'Koneksi Sheets belum dikonfigurasi.' :
+                    syncState.pending ? `Salinan Sheets: ${syncState.pending} pengiriman belum selesai (${syncState.state}). ${syncState.message}` : 'Salinan perubahan ke Sheets: seluruh pengiriman terkonfirmasi.';
+                document.getElementById('sync_review').classList.toggle('hidden', !syncState.reviewable);
+                return true;
+            } catch (error) {
+                console.warn('Status Sheets:', error.message);
+                return false;
+            }
+        }
         async function reviewSync() {
             await loadSyncStatus();
             if (!syncState || !syncState.reviewable) return;
@@ -816,6 +823,8 @@
             await loadSyncStatus();
         }
         let currentUser = null;
+        let masterRows = [];
+        let userAccessRows = new Map();
         let currentAlurVal = "1";
         let currentScanner = null;
         let isScanningLocked = false;
@@ -874,6 +883,7 @@
             }
 
             drainBusy = true;
+            let needsStatusRefresh = false;
 
             try {
                 const started = Date.now();
@@ -893,6 +903,7 @@
                             result.status === 'review'
                             || result.status === 'blocked'
                         ) {
+                            needsStatusRefresh = true;
                             console.warn(
                                 'Sheets:',
                                 result.message
@@ -901,6 +912,8 @@
 
                         break;
                     }
+
+                    needsStatusRefresh = true;
 
                     if (Date.now() - started > 20000) {
                         break;
@@ -912,6 +925,13 @@
 
             } finally {
                 drainBusy = false;
+                if (
+                    needsStatusRefresh
+                    && currentUser
+                    && currentUser.role === 'admin'
+                ) {
+                    void loadSyncStatus();
+                }
             }
         }
         async function enterApp(user) {
@@ -1119,8 +1139,15 @@
             const previous = button.innerHTML;
             button.disabled = true; button.textContent = 'Memperbarui…';
             try {
-                const results = await Promise.allSettled([loadDashboard(),loadAuditLogs()]);
-                const ok = results.every(r => r.status === 'fulfilled');
+                const tasks = [loadDashboard(), loadAuditLogs()];
+                if (currentUser && currentUser.role === 'admin') {
+                    tasks.push(loadSyncStatus());
+                }
+                const results = await Promise.allSettled(tasks);
+                const dashboardOk = results[0].status === 'fulfilled';
+                const logsOk = results[1].status === 'fulfilled'
+                    && results[1].value === true;
+                const ok = dashboardOk && logsOk;
                 await Swal.fire({toast:true,position:'top',icon:ok?'success':'error',
                     title:ok?'Overview berhasil diperbarui':'Sebagian data gagal diperbarui',
                     text:ok?'Data stok dan log terbaru sudah dimuat.':'Periksa koneksi lalu coba lagi.',
@@ -1134,7 +1161,7 @@
             if (active('view_overview')) tasks.push(loadDashboard(), loadAuditLogs());
             if (active('view_database')) tasks.push(loadAdminMaster());
             if (active('view_users')) tasks.push(loadAdminUsers());
-            if (currentUser && currentUser.role === 'admin' && active('view_database')) tasks.push(loadSyncStatus());
+            if (currentUser && currentUser.role === 'admin') tasks.push(loadSyncStatus());
             await Promise.allSettled(tasks);
         }
 
@@ -1162,19 +1189,34 @@
         }
 
         async function loadAuditLogs() {
+            const lBody = document.getElementById('overview_logs_body');
             try {
                 const start = document.getElementById('log_start_date').value;
                 const end = document.getElementById('log_end_date').value;
-                
+
                 let url = '/api/admin/database?include_master=false';
                 if (start) url += `&start_date=${start}`;
                 if (end) url += `&end_date=${end}`;
 
                 const res = await fetch(url);
-                const data = await res.json();
-                const lBody = document.getElementById('overview_logs_body');
-                
-                if (!data.logs || data.logs.length === 0) {
+                let data = {};
+                try {
+                    data = await res.json();
+                } catch (parseError) {
+                    data = {};
+                }
+
+                if (!res.ok) {
+                    throw new Error(
+                        data.message || 'Gagal memuat log pemindaian.'
+                    );
+                }
+
+                if (!Array.isArray(data.logs)) {
+                    throw new Error('Respons log pemindaian tidak valid.');
+                }
+
+                if (data.logs.length === 0) {
                     lBody.innerHTML = `<tr><td colspan="5" class="py-4 text-center text-gray-500">Belum ada log pemindaian pada rentang tanggal ini.</td></tr>`;
                 } else {
                     lBody.innerHTML = data.logs.map((l, index) => `
@@ -1191,8 +1233,14 @@
                         </tr>
                     `).join('');
                 }
+
+                return true;
             } catch(e) {
                 console.error("Error load audit logs:", e);
+                if (lBody) {
+                    lBody.innerHTML = `<tr><td colspan="5" class="py-4 text-center text-red-400">Gagal memuat log: ${safeText(e.message || 'Koneksi terganggu.')}</td></tr>`;
+                }
+                return false;
             }
         }
 
@@ -1534,7 +1582,10 @@
             button.textContent = 'Memperbarui…';
 
             try {
-                const res = await fetch('/api/sync', { method: 'POST' });
+                const result = await trackingRequest(
+                    '/api/sync',
+                    { method: 'POST' }
+                );
                 await loadAdminMaster();
                 await loadSyncStatus();
 
@@ -1543,6 +1594,7 @@
                     position: 'top',
                     icon: 'success',
                     title: 'Master data diperbarui',
+                    text: result.message,
                     timer: 1200,
                     showConfirmButton: false
                 });
@@ -2142,13 +2194,6 @@
             finally {finishBusy = false;}
         }
 
-        async function syncData() {
-            const res = await fetch('/api/sync', {method: 'POST'});
-            const data = await res.json();
-            Swal.fire({ icon: res.ok ? 'success' : 'error', title: 'Sync', text: data.message, customClass: { popup: 'dark-swal' } });
-            if (res.ok) await refreshAllData();
-        }
-
         document.getElementById('station_id_input').addEventListener('keypress', (e) => { if (e.key === 'Enter') submitCurrentStation(); });
 
         function closeAddStokModal() {
@@ -2209,64 +2254,6 @@
                 .classList.remove('hidden');
         }
 
-        function closeAddStokModal() {
-        document.getElementById('add_stok_modal').classList.add('hidden');
-        document.getElementById('add_prefix_id').value = '';
-        document.getElementById('add_nama_sarana').value = '';
-        document.getElementById('add_qty').value = '1';
-        document.getElementById('add_vendor').value = '';}
-
-        async function handleAddStokSubmit(e) {
-            e.preventDefault();
-            const selectedVendor = document.getElementById('add_vendor').value;
-
-            if (!selectedVendor || selectedVendor === '__ADD_VENDOR__') {
-                await Swal.fire({
-                    icon: 'warning',
-                    text: 'Pilih vendor terlebih dahulu.',
-                    customClass: { popup: 'dark-swal' }
-                });
-                return;
-            }
-            Swal.fire({
-                title: 'Memproses Tambah Stok...',
-                text: 'Generasi ID Sarana & menyimpan ke database',
-                allowOutsideClick: false,
-                didOpen: () => Swal.showLoading(),
-                customClass: { popup: 'dark-swal' }});
-
-            const formData = new FormData();
-            formData.append('prefix_id', document.getElementById('add_prefix_id').value);
-            formData.append('nama_sarana', document.getElementById('add_nama_sarana').value);
-            formData.append('qty', document.getElementById('add_qty').value);
-            formData.append('vendor', document.getElementById('add_vendor').value);
-
-            try {
-                const res = await fetch('/api/admin/sarana/add-batch', { method: 'POST', body: formData });
-                const result = await res.json();
-
-                if (res.ok) {
-                    closeAddStokModal();
-                    await refreshAllData();
-                    Swal.fire({
-                        icon: 'success',
-                        title: 'Stok Berhasil Ditambahkan!',
-                        text: result.message,
-                        customClass: { popup: 'dark-swal' },
-                        confirmButtonColor: '#2563eb'});} 
-                else {
-                    Swal.fire({
-                        icon: 'error',
-                        title: 'Gagal Tambah Stok',
-                        text: result.message,
-                        customClass: { popup: 'dark-swal' }});}}
-                catch (err) {
-                    Swal.fire({
-                        icon: 'error',
-                        title: 'Koneksi Terputus',
-                        text: 'Gagal terhubung ke server!',
-                        customClass: { popup: 'dark-swal' }});}}
-        
         async function openDeleteNgModal() {
             try {
                 const res = await fetch('/api/admin/database');
