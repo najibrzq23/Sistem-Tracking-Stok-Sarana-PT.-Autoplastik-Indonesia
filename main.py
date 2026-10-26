@@ -15,7 +15,7 @@ from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from starlette.middleware.sessions import SessionMiddleware
 from starlette.concurrency import run_in_threadpool
-from sqlalchemy import text, func
+from sqlalchemy import text, func, or_
 from database import (BASE_DIR, IS_CLOUD, IS_POSTGRES, PRIMARY_ADMIN, SessionLocal,
                       Sarana, LogScan, User, SyncJob, LoginAttempt, AccountAudit, UnloadingGroup, init_db,
                       lock_writes, hash_password, verify_password, now)
@@ -1076,6 +1076,34 @@ def scan(
     return {
         'status': 'success',
         'message': f'Scan tersimpan: {target}.',
+    }
+
+@app.get('/api/admin/sarana/options')
+def sarana_options():
+    with SessionLocal() as session:
+        rows = (
+            session.query(
+                Sarana.ID_Sarana,
+                Sarana.Nama_Sarana,
+                Sarana.Status_Saat_Ini,
+            )
+            .filter(or_(
+                Sarana.Status_Saat_Ini.is_(None),
+                ~Sarana.Status_Saat_Ini.startswith('DELETED'),
+            ))
+            .order_by(Sarana.ID_Sarana)
+            .all()
+        )
+    return {
+        'status': 'success',
+        'units': [
+            {
+                'ID_Sarana': row.ID_Sarana,
+                'Nama_Sarana': escaped(row.Nama_Sarana),
+                'Status_Saat_Ini': escaped(row.Status_Saat_Ini),
+            }
+            for row in rows
+        ],
     }
 
 @app.post('/api/admin/sarana/delete-ng')

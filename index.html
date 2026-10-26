@@ -1287,17 +1287,24 @@
             <div class="flex items-start justify-between gap-3 border-b border-[#D9E6FA] pb-3">
                 <div>
                     <h3 class="text-lg font-black text-[#C62828]">Hapus Stok Sarana (Defect / NG)</h3>
-                    <p class="mt-1 text-xs text-[#5B6B8A]">Pilih ID part aktif yang ingin dikeluarkan dari stok.</p>
+                    <p class="mt-1 text-xs text-[#5B6B8A]">Pilih nama part/prefix ID dulu, lalu pilih nomor unit yang ingin dikeluarkan dari stok.</p>
                 </div>
                 <button onclick="closeDeleteNgModal()" class="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-[#D9E6FA] bg-[#F5F9FF] text-[#5B6B8A]" aria-label="Tutup">✕</button>
             </div>
             <form onsubmit="handleDeleteNgSubmit(event)" class="space-y-4">
                 <div>
-                    <label class="field-label" for="delete_id_sarana">Pilih ID sarana / part (stok aktif)</label>
-                    <select id="delete_id_sarana" required class="field font-mono">
-                        <option value="">-- Memuat Data ID... --</option>
+                    <label class="field-label" for="delete_part_group">1. Nama part / prefix ID sarana</label>
+                    <select id="delete_part_group" required class="field" onchange="updateDeleteUnitOptions()">
+                        <option value="">-- Memuat Data Part... --</option>
                     </select>
                 </div>
+                <div>
+                    <label class="field-label" for="delete_id_sarana">2. Nomor unit / ID sarana</label>
+                    <select id="delete_id_sarana" required class="field font-mono" disabled>
+                        <option value="">-- Pilih nama part / prefix dulu --</option>
+                    </select>
+                </div>
+                <p class="text-[11px] leading-relaxed text-[#5B6B8A]">Daftar unit pada pilihan kedua hanya menampilkan stok aktif dari part/prefix yang dipilih.</p>
                 <div>
                     <label class="field-label" for="delete_alasan">Alasan penghapusan (NG)</label>
                     <select id="delete_alasan" required class="field">
@@ -1406,6 +1413,7 @@
 
         let currentUser = null;
         let masterRows = [];
+        let deleteNgGroups = [];
         let userAccessRows = new Map();
         let currentAlurVal = '1';
         let currentStationKey = 'api_out';
@@ -2733,6 +2741,12 @@
             return String(value ?? '').replace(/[&<>"']/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'}[c]));
         }
 
+        function decodeHtmlEntities(value) {
+            const textarea = document.createElement('textarea');
+            textarea.innerHTML = String(value ?? '');
+            return textarea.value;
+        }
+
         let finishBusy = false;
         async function finishVendorUnloading() {
             if (finishBusy || scanRequestBusy) return;
@@ -2810,24 +2824,106 @@
             document.getElementById('add_stok_modal').classList.remove('hidden');
         }
 
+        function deletePrefixAndSuffix(idSarana) {
+            const value = String(idSarana || '');
+            const match = value.match(/^(.*)-(\d+)$/);
+            if (match) return {prefix: match[1], suffix: match[2]};
+            return {prefix: value, suffix: value};
+        }
+
+        function naturalCompare(a, b) {
+            return String(a).localeCompare(String(b), undefined, {numeric: true, sensitivity: 'base'});
+        }
+
+        function updateDeleteUnitOptions() {
+            const groupSelect = document.getElementById('delete_part_group');
+            const unitSelect = document.getElementById('delete_id_sarana');
+            const group = groupSelect.value === '' ? null : deleteNgGroups[Number(groupSelect.value)];
+            unitSelect.innerHTML = '';
+            if (!group) {
+                unitSelect.disabled = true;
+                const placeholder = document.createElement('option');
+                placeholder.value = '';
+                placeholder.textContent = '-- Pilih nama part / prefix dulu --';
+                unitSelect.appendChild(placeholder);
+                return;
+            }
+            unitSelect.disabled = false;
+            const placeholder = document.createElement('option');
+            placeholder.value = '';
+            placeholder.textContent = '-- Pilih nomor unit --';
+            unitSelect.appendChild(placeholder);
+            group.units.forEach(unit => {
+                const option = document.createElement('option');
+                option.value = unit.id;
+                option.textContent = `${unit.suffix} — ${unit.status}`;
+                unitSelect.appendChild(option);
+            });
+        }
+
         async function openDeleteNgModal() {
             try {
-                const res = await fetch('/api/admin/database');
+                const res = await fetch('/api/admin/sarana/options');
                 const data = await res.json();
-                const selectEl = document.getElementById('delete_id_sarana');
-                selectEl.innerHTML = '<option value="">-- Pilih ID Sarana --</option>';
+                if (!res.ok) throw new Error(data.message || 'Gagal mengambil daftar part aktif.');
 
-                const activeUnits = (data.master || []).filter(m => !m.Status_Saat_Ini.startsWith('DELETED'));
-                if (activeUnits.length === 0) {
-                    selectEl.innerHTML = '<option value="">-- Tidak Ada Stok Aktif --</option>';
-                } else {
-                    activeUnits.forEach(u => {
-                        selectEl.innerHTML += `<option value="${safeText(u.ID_Sarana)}">${safeText(u.ID_Sarana)} - ${safeText(u.Nama_Sarana)} (${safeText(u.Status_Saat_Ini)})</option>`;
+                const grouped = new Map();
+                (data.units || []).forEach(unit => {
+                    if (String(unit.Status_Saat_Ini || '').startsWith('DELETED')) return;
+                    const {prefix, suffix} = deletePrefixAndSuffix(unit.ID_Sarana);
+                    const name = decodeHtmlEntities(unit.Nama_Sarana) || 'Tanpa Nama Part';
+                    const key = `${name}\u0000${prefix}`;
+                    let group = grouped.get(key);
+                    if (!group) {
+                        group = {name, prefix, units: []};
+                        grouped.set(key, group);
+                    }
+                    group.units.push({
+                        id: unit.ID_Sarana,
+                        suffix,
+                        status: decodeHtmlEntities(unit.Status_Saat_Ini) || '-',
                     });
+                });
+
+                deleteNgGroups = Array.from(grouped.values());
+                deleteNgGroups.sort((a, b) => naturalCompare(a.name, b.name) || naturalCompare(a.prefix, b.prefix));
+                deleteNgGroups.forEach(group => {
+                    group.units.sort((a, b) => naturalCompare(a.suffix, b.suffix) || naturalCompare(a.id, b.id));
+                });
+
+                const groupSelect = document.getElementById('delete_part_group');
+                const unitSelect = document.getElementById('delete_id_sarana');
+                groupSelect.innerHTML = '';
+                if (deleteNgGroups.length === 0) {
+                    groupSelect.disabled = true;
+                    const groupOption = document.createElement('option');
+                    groupOption.value = '';
+                    groupOption.textContent = '-- Tidak Ada Stok Aktif --';
+                    groupSelect.appendChild(groupOption);
+                    unitSelect.disabled = true;
+                    unitSelect.innerHTML = '';
+                    const unitOption = document.createElement('option');
+                    unitOption.value = '';
+                    unitOption.textContent = '-- Tidak Ada Stok Aktif --';
+                    unitSelect.appendChild(unitOption);
+                } else {
+                    groupSelect.disabled = false;
+                    const placeholder = document.createElement('option');
+                    placeholder.value = '';
+                    placeholder.textContent = '-- Pilih nama part / prefix ID --';
+                    groupSelect.appendChild(placeholder);
+                    deleteNgGroups.forEach((group, index) => {
+                        const option = document.createElement('option');
+                        option.value = String(index);
+                        option.textContent = `${group.name} — ${group.prefix} (${group.units.length} unit)`;
+                        groupSelect.appendChild(option);
+                    });
+                    groupSelect.value = '';
+                    updateDeleteUnitOptions();
                 }
                 document.getElementById('delete_ng_modal').classList.remove('hidden');
             } catch (e) {
-                Swal.fire({icon: 'error', title: 'Gagal Memuat Data', text: 'Gagal mengambil daftar ID Sarana', customClass: {popup: 'app-swal'}});
+                Swal.fire({icon: 'error', title: 'Gagal Memuat Data', text: e.message || 'Gagal mengambil daftar part aktif.', customClass: {popup: 'app-swal'}});
             }
         }
 
