@@ -290,6 +290,7 @@
         #sync_text { overflow-wrap: anywhere; }
 
         .part-dot {
+            --dot-rgb: 31, 95, 224;
             display: inline-block;
             width: 8px;
             height: 8px;
@@ -301,10 +302,14 @@
         .part-dot-live {
             animation: part-dot-breathe 1.6s ease-in-out infinite;
         }
-        .part-dot-danger { background: var(--danger); }
+        .part-dot-danger {
+            --dot-rgb: 198, 40, 40;
+            background: var(--danger);
+            animation: part-dot-breathe 1.6s ease-in-out infinite;
+        }
         @keyframes part-dot-breathe {
-            0%, 100% { transform: scale(.82); box-shadow: 0 0 0 0 rgba(31, 95, 224, .32); }
-            50% { transform: scale(1.35); box-shadow: 0 0 0 5px rgba(31, 95, 224, 0); }
+            0%, 100% { transform: scale(.82); box-shadow: 0 0 0 0 rgba(var(--dot-rgb), .32); }
+            50% { transform: scale(1.35); box-shadow: 0 0 0 5px rgba(var(--dot-rgb), 0); }
         }
 
         .warning-item {
@@ -355,7 +360,7 @@
             50% { transform: translateY(-3px) scale(1.06); }
         }
         @media (prefers-reduced-motion: reduce) {
-            .part-dot-live, .warning-item, .warning-icon { animation: none; }
+            .part-dot-live, .part-dot-danger, .warning-item, .warning-icon { animation: none; }
         }
         .warning-empty {
             padding: 16px;
@@ -753,11 +758,11 @@
     <div id="login_modal" class="login-overlay fixed inset-0 z-[60] flex items-center justify-center p-4">
         <div class="login-card w-full max-w-md p-7 sm:p-9 space-y-6">
             <div class="text-center space-y-3">
-                <img src="/static/logo_api.jpg" alt="Logo PT API" class="w-16 h-16 object-contain mx-auto rounded-2xl shadow-lg">
+                <img src="/static/logo_api.png" alt="Logo PT API" class="h-20 w-auto mx-auto">
                 <div>
-                    <p class="text-[10px] font-black uppercase tracking-[.18em] text-[#1F5FE0]">PT Autoplastik Indonesia</p>
-                    <h2 class="mt-1 text-2xl font-black tracking-tight text-[#0B1F44]">Login System</h2>
-                    <p class="mt-1 text-xs text-[#5B6B8A]">Silakan login sesuai username akun Anda</p>
+                    <p class="text-[10px] font-black uppercase tracking-[.18em] text-[#1F5FE0]">PT. Autoplastik Indonesia</p>
+                    <h2 class="mt-1 text-2xl font-black tracking-tight text-[#0B1F44]">LOGIN SYSTEM</h2>
+                    <p class="mt-1 text-xs text-[#5B6B8A]">Silahkan Login Sesuai Username Akun Anda</p>
                 </div>
             </div>
             <p id="session_hint" class="text-xs text-[#5B6B8A] text-center">Memeriksa sesi login…</p>
@@ -772,7 +777,7 @@
                 </div>
                 <button type="submit" class="btn btn-primary btn-block" style="min-height:50px;">Masuk Akun</button>
             </form>
-            <p class="text-center text-[11px] text-[#5B6B8A]">Sistem Pelacakan Stok Sarana · Waktu log WIB</p>
+            <p class="text-center text-[11px] text-[#5B6B8A]">Sistem Pelacakan Stok Sarana</p>
         </div>
     </div>
 
@@ -784,7 +789,7 @@
         <div class="space-y-6">
             <div class="flex items-center justify-between gap-3 px-1 py-1">
                 <div class="flex items-center gap-3 min-w-0">
-                    <img src="/static/logo_api.jpg" alt="Logo PT API" class="h-11 w-11 shrink-0 rounded-2xl object-contain shadow-md">
+                    <img src="/static/logo_api.png" alt="Logo PT API" class="h-11 w-auto shrink-0">
                     <div class="min-w-0">
                         <h1 class="text-[13px] font-black leading-snug text-[#0B1F44]">PT. Autoplastik Indonesia</h1>
                         <p class="mt-0.5 text-[10px] font-extrabold uppercase tracking-[.12em] text-[#1F5FE0]">Pelacakan Stok Sarana</p>
@@ -811,6 +816,10 @@
                         <span>Kelola</span>
                     </button>
                 </div>
+                <button id="nav_account" onclick="switchMenu('account')" class="sidebar-btn nav-item w-full text-left">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="4"></circle><path d="M4 21a8 8 0 0 1 16 0"></path></svg>
+                    <span>Akun</span>
+                </button>
             </nav>
         </div>
 
@@ -842,7 +851,7 @@
 
                 <section class="app-card page-header">
                     <div class="flex min-w-0 items-center gap-3">
-                        <img src="/static/logo_api.jpg" alt="Logo PT API" class="h-11 w-11 shrink-0 rounded-2xl object-contain shadow-md lg:hidden">
+                        <img src="/static/logo_api.png" alt="Logo PT API" class="h-11 w-auto shrink-0 lg:hidden">
                         <button onclick="toggleSidebar()" class="page-menu-btn overview-only flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-[#D9E6FA] bg-[#F5F9FF] text-[#0B1F44]" aria-label="Buka menu">
                             <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.4" d="M4 6h16M4 12h16M4 18h16"></path></svg>
                         </button>
@@ -852,7 +861,7 @@
                         </div>
                     </div>
                     <div class="hidden items-center gap-3 lg:flex">
-                        <img src="/static/logo_api.jpg" alt="Logo PT API" class="h-12 w-12 shrink-0 rounded-2xl object-contain shadow-md">
+                        <img src="/static/logo_api.png" alt="Logo PT API" class="h-12 w-auto shrink-0">
                         <div>
                             <p class="text-sm font-black leading-tight text-[#0B1F44]">PT. Autoplastik Indonesia</p>
                             <p class="mt-0.5 text-[10px] font-black uppercase tracking-[.14em] text-[#1F5FE0]">Sistem Tracking Sarana</p>
@@ -964,7 +973,7 @@
             <div id="view_station" class="hidden space-y-5">
                 <section class="app-card page-header">
                     <div class="flex min-w-0 items-center gap-3">
-                        <img src="/static/logo_api.jpg" alt="Logo PT API" class="h-11 w-11 shrink-0 rounded-2xl object-contain shadow-md lg:hidden">
+                        <img src="/static/logo_api.png" alt="Logo PT API" class="h-11 w-auto shrink-0 lg:h-12">
                         <button onclick="toggleSidebar()" class="page-menu-btn flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-[#D9E6FA] bg-[#F5F9FF] text-[#0B1F44]" aria-label="Buka menu">
                             <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.4" d="M4 6h16M4 12h16M4 18h16"></path></svg>
                         </button>
@@ -1055,7 +1064,7 @@
             <div id="view_kelola" class="hidden space-y-5">
                 <section class="app-card page-header">
                     <div class="flex min-w-0 items-center gap-3">
-                        <img src="/static/logo_api.jpg" alt="Logo PT API" class="h-11 w-11 shrink-0 rounded-2xl object-contain shadow-md lg:hidden">
+                        <img src="/static/logo_api.png" alt="Logo PT API" class="h-11 w-auto shrink-0 lg:h-12">
                         <button onclick="toggleSidebar()" class="page-menu-btn flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-[#D9E6FA] bg-[#F5F9FF] text-[#0B1F44]" aria-label="Buka menu">
                             <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.4" d="M4 6h16M4 12h16M4 18h16"></path></svg>
                         </button>
@@ -1226,7 +1235,7 @@
             <div id="view_account" class="hidden space-y-5">
                 <section class="app-card page-header">
                     <div class="flex min-w-0 items-center gap-3">
-                        <img src="/static/logo_api.jpg" alt="Logo PT API" class="h-11 w-11 shrink-0 rounded-2xl object-contain shadow-md lg:hidden">
+                        <img src="/static/logo_api.png" alt="Logo PT API" class="h-11 w-auto shrink-0 lg:h-12">
                         <button onclick="toggleSidebar()" class="page-menu-btn flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-[#D9E6FA] bg-[#F5F9FF] text-[#0B1F44]" aria-label="Buka menu">
                             <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.4" d="M4 6h16M4 12h16M4 18h16"></path></svg>
                         </button>
@@ -1628,7 +1637,7 @@
             try {
                 const response = await fetch('/api/me');
                 if (response.ok) {await enterApp((await response.json()).user); return;}
-                document.getElementById('session_hint').textContent = 'Silakan login.';
+                document.getElementById('session_hint').textContent = 'Silahkan Login.';
             } catch (error) {
                 document.getElementById('session_hint').textContent = 'Server belum dapat dihubungi. Muat ulang untuk mencoba lagi.';
             }
@@ -2791,7 +2800,7 @@
                                         <span class="warning-part">${safeText(item.Nama_Part)}</span>
                                         <span class="warning-badge">${item.Lost} unit hilang</span>
                                     </div>
-                                    <p class="warning-sub">Terdeteksi HIlang / Tertinggal</p>
+                                    <p class="warning-sub">Terdeteksi Hilang / Tertinggal</p>
                                 </div>
                             </div>
                         `);
