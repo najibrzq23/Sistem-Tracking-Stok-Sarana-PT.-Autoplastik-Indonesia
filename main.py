@@ -179,6 +179,8 @@ def public_user(u):
     return {
         'username': u.username,
         'nama_lengkap': u.nama_lengkap,
+        'npk': u.npk or '',
+        'jabatan': u.jabatan or '',
         'role': u.role,
         'scan_permissions': allowed_scans(u),
     }
