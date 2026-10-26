@@ -979,7 +979,7 @@
                         </button>
                         <div class="min-w-0">
                             <h1 class="page-title">SCAN</h1>
-                            <p class="page-subtitle">Pilih station, lalu pilih tujuan akhir sebelum scan QR sarana. Hasil scan akan muncul di layar.</p>
+                            <p class="page-subtitle">Pilih Station, Lalu Pilih Tujuan Akhir Sebelum Scan QR Sarana</p>
                         </div>
                     </div>
                 </section>
@@ -1070,7 +1070,7 @@
                         </button>
                         <div class="min-w-0">
                             <h1 class="page-title">KELOLA</h1>
-                            <p class="page-subtitle">Master data, akun pengguna, dan cetak QR.</p>
+                            <p class="page-subtitle">Master Data, Akun Pengguna, & Cetak QR</p>
                         </div>
                     </div>
                     <div class="segmented kelola-tabs w-full md:w-auto" aria-label="Menu kelola">
@@ -1241,7 +1241,7 @@
                         </button>
                         <div class="min-w-0">
                             <h1 class="page-title">AKUN</h1>
-                            <p class="page-subtitle">Informasi akun yang sedang login dan akses keluar.</p>
+                            <p class="page-subtitle">Informasi Akun Yang Sedang Login & Akses Keluar</p>
                         </div>
                     </div>
                 </section>
@@ -1995,9 +1995,9 @@
                     lBody.innerHTML = `<tr><td colspan="5" class="empty-state">Belum ada log pemindaian pada rentang tanggal ini.</td></tr>`;
                     if (mobileBody) mobileBody.innerHTML = `<div class="empty-state">Belum ada log pemindaian pada rentang tanggal ini.</div>`;
                 } else {
-                    lBody.innerHTML = data.logs.map((l, index) => `
+                    lBody.innerHTML = data.logs.map(l => `
                         <tr>
-                            <td class="font-mono text-[#5B6B8A]">#${data.logs.length - index}</td>
+                            <td class="font-mono text-[#5B6B8A]">#${safeText(l.id)}</td>
                             <td class="font-mono font-bold text-[#1F5FE0]">${safeText(l.ID_Sarana)}</td>
                             <td><span class="status-badge info">${safeText(l.Alur_Scan)}</span></td>
                             <td class="font-bold text-[#B45F06]">${safeText(l.Customer || l.Vendor || '-')}</td>
@@ -2006,10 +2006,10 @@
                     `).join('');
 
                     if (mobileBody) {
-                        mobileBody.innerHTML = data.logs.map((l, index) => `
+                        mobileBody.innerHTML = data.logs.map(l => `
                             <div class="part-card">
                                 <div class="flex items-start justify-between gap-2">
-                                    <span class="font-mono text-xs font-bold text-[#5B6B8A]">#${data.logs.length - index}</span>
+                                    <span class="font-mono text-xs font-bold text-[#5B6B8A]">#${safeText(l.id)}</span>
                                     <span class="text-[11px] font-semibold text-[#5B6B8A]">${safeText(l.Waktu_Scan)}</span>
                                 </div>
                                 <p class="mt-1 font-mono text-sm font-black text-[#1F5FE0]">${safeText(l.ID_Sarana)}</p>
