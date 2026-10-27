@@ -21,10 +21,12 @@
             --primary-dark: #184FCC;
             --primary-soft: #EAF1FF;
             --success: #0A7F55;
+            --success-dark: #086A47;
             --success-soft: #E7F7F0;
             --warning: #B45F06;
             --warning-soft: #FFF3E4;
             --danger: #C62828;
+            --danger-dark: #A82020;
             --danger-soft: #FDECEC;
             --shadow: 0 10px 30px rgba(15, 45, 90, 0.08);
             --shadow-lg: 0 24px 70px rgba(11, 31, 68, 0.18);
@@ -68,6 +70,8 @@
             #sidebar { transform: translateX(0) !important; width: 272px; }
             #sidebar_overlay { display: none !important; }
             main { margin-left: 272px; width: calc(100% - 272px) !important; }
+            body.sidebar-collapsed:not(.overview-mode) #sidebar { transform: translateX(-100%) !important; }
+            body.sidebar-collapsed:not(.overview-mode) main { margin-left: 0 !important; width: 100% !important; }
         }
 
         main { padding: 16px 16px 112px; min-height: 100vh; transition: margin .25s ease, width .25s ease; }
@@ -115,16 +119,18 @@
         }
         .btn svg { width: 17px; height: 17px; flex: 0 0 auto; }
         .btn-primary { background: var(--primary); color: #fff; box-shadow: 0 8px 18px rgba(31, 95, 224, .22); }
-        .btn-primary:hover { background: var(--primary-dark); transform: translateY(-1px); }
+        .btn-primary:hover { background: var(--primary-dark); transform: translateY(-2px); box-shadow: 0 12px 22px rgba(31, 95, 224, .28); }
         .btn-outline { background: #fff; border-color: #C9DCF6; color: var(--primary); }
         .btn-outline:hover { background: var(--primary-soft); border-color: #A9C6F4; }
         .btn-ghost { background: #F5F9FF; border-color: var(--line); color: var(--ink); }
         .btn-ghost:hover { background: var(--primary-soft); }
         .btn-danger-outline { background: #fff; border-color: #F3C2C2; color: var(--danger); }
         .btn-danger-outline:hover { background: var(--danger-soft); }
-        .btn-danger { background: var(--danger); color: #fff; }
+        .btn-danger { background: var(--danger); color: #fff; box-shadow: 0 8px 18px rgba(198, 40, 40, .20); }
+        .btn-danger:hover { background: var(--danger-dark); transform: translateY(-2px); box-shadow: 0 12px 22px rgba(198, 40, 40, .28); }
         .btn-warning { background: var(--warning); color: #fff; }
-        .btn-success { background: var(--success); color: #fff; }
+        .btn-success { background: var(--success); color: #fff; box-shadow: 0 8px 18px rgba(10, 127, 85, .20); }
+        .btn-success:hover { background: var(--success-dark); transform: translateY(-2px); box-shadow: 0 12px 22px rgba(10, 127, 85, .28); }
         .btn-sm { min-height: 36px; padding: 8px 12px; font-size: 12px; border-radius: 10px; }
         .btn-block { width: 100%; }
 
@@ -236,6 +242,48 @@
         .status-badge.danger { background: var(--danger-soft); border-color: #F3C2C2; color: var(--danger); }
         .status-badge.neutral { background: #F2F6FC; border-color: #DCE7F6; color: var(--muted); }
 
+        .log-live-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 7px;
+            padding: 6px 11px;
+            border: 1px solid transparent;
+            border-radius: 999px;
+            font-size: 11px;
+            font-weight: 900;
+            line-height: 1.2;
+            white-space: nowrap;
+            transition: background .2s ease, border-color .2s ease, color .2s ease;
+            animation: log-live-breathe 2s ease-in-out infinite;
+        }
+        .log-live-badge.is-live {
+            --dot-rgb: 15, 123, 95;
+            --badge-rgb: 15, 123, 95;
+            border-color: #A8E3CE;
+            background: #E9F9F3;
+            color: #0F7B5F;
+        }
+        .log-live-badge.is-history {
+            --dot-rgb: 180, 95, 6;
+            --badge-rgb: 180, 95, 6;
+            border-color: #F2C88F;
+            background: #FFF4E1;
+            color: #B45F06;
+        }
+        .log-live-badge.is-history .log-live-dot { display: none; }
+        .log-live-badge .log-live-dot {
+            width: 8px;
+            height: 8px;
+            flex: 0 0 auto;
+            border-radius: 999px;
+            background: currentColor;
+            animation: part-dot-breathe 1.6s ease-in-out infinite;
+        }
+        @keyframes log-live-breathe {
+            0%, 100% { box-shadow: 0 0 0 0 rgba(var(--badge-rgb), 0); }
+            50% { box-shadow: 0 0 0 4px rgba(var(--badge-rgb), .12); }
+        }
+
         .table-wrap {
             overflow: auto;
             border: 1px solid var(--line);
@@ -302,9 +350,9 @@
             align-items: flex-start;
             gap: 12px;
             padding: 14px;
-            border: 1px solid #F3C2C2;
+            border: 1px solid #F08A8A;
             border-radius: 16px;
-            background: linear-gradient(135deg, #FFF8F8 0%, #FFFFFF 100%);
+            background: linear-gradient(135deg, #FFF5F5 0%, #FFFFFF 100%);
             animation: warning-glow 2.2s ease-in-out infinite;
         }
         .warning-icon {
@@ -318,10 +366,11 @@
             border-radius: 14px;
             background: #FDECEC;
             color: var(--danger);
+            box-shadow: 0 0 14px rgba(198, 40, 40, .18);
             animation: warning-icon-bob 1.9s ease-in-out infinite;
         }
         .warning-icon svg { width: 22px; height: 22px; }
-        .warning-part { color: var(--ink); font-size: 13px; font-weight: 900; line-height: 1.3; }
+        .warning-part { color: #D81B1B; font-size: 13px; font-weight: 900; line-height: 1.3; text-shadow: 0 0 10px rgba(216, 27, 27, .18); }
         .warning-badge {
             display: inline-flex;
             align-items: center;
@@ -336,15 +385,48 @@
         }
         .warning-sub { margin-top: 5px; color: #A33A3A; font-size: 11px; font-weight: 700; line-height: 1.5; }
         @keyframes warning-glow {
-            0%, 100% { box-shadow: 0 8px 22px rgba(198, 40, 40, .07), 0 0 0 0 rgba(198, 40, 40, .06); border-color: #F3C2C2; }
-            50% { box-shadow: 0 12px 30px rgba(198, 40, 40, .16), 0 0 0 4px rgba(198, 40, 40, .05); border-color: #E88B8B; }
+            0%, 100% { box-shadow: 0 8px 22px rgba(198, 40, 40, .12), 0 0 0 0 rgba(198, 40, 40, .10); border-color: #F08A8A; }
+            50% { box-shadow: 0 12px 32px rgba(198, 40, 40, .28), 0 0 0 5px rgba(198, 40, 40, .08); border-color: #FF4D4D; }
         }
         @keyframes warning-icon-bob {
             0%, 100% { transform: translateY(0) scale(1); }
             50% { transform: translateY(-3px) scale(1.06); }
         }
+
+        .selisih-card { transition: border-color .25s ease, box-shadow .25s ease; }
+        .selisih-icon {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 40px;
+            height: 40px;
+            flex: 0 0 auto;
+            border: 1px solid transparent;
+            border-radius: 12px;
+            transition: background .25s ease, border-color .25s ease, color .25s ease;
+        }
+        .selisih-icon svg { width: 20px; height: 20px; }
+        .selisih-card.is-safe .selisih-icon {
+            border-color: #F3D5A6;
+            background: var(--warning-soft);
+            color: var(--warning);
+        }
+        .selisih-card.is-danger .selisih-icon {
+            border-color: #F3C2C2;
+            background: var(--danger-soft);
+            color: var(--danger);
+            animation: warning-icon-danger 1.6s ease-in-out infinite;
+        }
+        .selisih-title { transition: color .25s ease; }
+        .selisih-card.is-safe .selisih-title { color: var(--warning); }
+        .selisih-card.is-danger .selisih-title { color: var(--danger); }
+        @keyframes warning-icon-danger {
+            0%, 100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(198, 40, 40, .35); }
+            50% { transform: scale(1.18); box-shadow: 0 0 18px 4px rgba(198, 40, 40, .35); }
+        }
         @media (prefers-reduced-motion: reduce) {
-            .part-dot-live, .part-dot-danger, .warning-item, .warning-icon { animation: none; }
+            .part-dot-live, .part-dot-danger, .warning-item, .warning-icon, .selisih-icon,
+            .log-live-badge, .log-live-badge .log-live-dot { animation: none; }
         }
         .warning-empty {
             padding: 16px;
@@ -711,9 +793,20 @@
             body.overview-mode #sidebar_overlay:not(.hidden) { display: block !important; }
         }
         .page-menu-btn { display: none !important; }
+        .header-menu-divider {
+            display: none;
+            width: 3px;
+            height: 34px;
+            flex: 0 0 auto;
+            border-radius: 999px;
+            background: #fff;
+            box-shadow: 0 0 0 1px #D9E6FA, 0 2px 8px rgba(11, 31, 68, .06);
+        }
         @media screen and (min-width: 1024px) {
             body.overview-mode .page-menu-btn.overview-only { display: inline-flex !important; }
-            .sidebar-close { display: none !important; }
+            body.sidebar-collapsed:not(.overview-mode) .page-menu-btn.menu-toggle-btn { display: inline-flex !important; }
+            body.sidebar-collapsed:not(.overview-mode) .header-menu-divider { display: block; }
+            .sidebar-close { display: inline-flex !important; }
             body.overview-mode.sidebar-open .sidebar-close { display: inline-flex !important; }
         }
     </style>
@@ -878,14 +971,14 @@
                             <div id="mobile_stock_list" class="mobile-only space-y-3 p-4"></div>
                         </div>
 
-                        <div class="app-card order-1 flex flex-col p-4 lg:order-none lg:col-span-3">
+                        <div id="selisih_card" class="app-card selisih-card is-safe order-1 flex flex-col p-4 lg:order-none lg:col-span-3">
                             <div class="mb-4 flex items-center gap-3">
-                                <div class="flex h-10 w-10 items-center justify-center rounded-xl border border-[#F3C2C2] bg-[#FDECEC] text-[#C62828]">
-                                    <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M12 9v4"></path><path d="M12 17h.01"></path><path d="M10.3 3.9 2.8 17a2 2 0 0 0 1.7 3h15a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"></path></svg>
+                                <div id="selisih_icon" class="selisih-icon" aria-hidden="true">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M12 9v4"></path><path d="M12 17h.01"></path><path d="M10.3 3.9 2.8 17a2 2 0 0 0 1.7 3h15a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"></path></svg>
                                 </div>
                                 <div>
-                                    <h2 class="text-base font-black text-[#C62828]">PERLU DICEK!</h2>
-                                    <p class="text-[11px] text-[#5B6B8A]">Unit Terdeteksi Hilang / Tertinggal</p>
+                                    <h2 id="selisih_title" class="selisih-title text-base font-black">PERLU DICEK!</h2>
+                                    <p id="selisih_subtitle" class="text-[11px] text-[#5B6B8A]">Unit Terdeteksi Hilang / Tertinggal</p>
                                 </div>
                             </div>
                             <div id="selisih_list" class="flex-1 space-y-3 overflow-y-auto max-h-[350px] pr-1"></div>
@@ -895,9 +988,15 @@
 
                 <section id="overview_log_panel" class="app-card mobile-hidden overflow-hidden">
                     <div class="flex flex-col gap-4 border-b border-[#D9E6FA] p-5 lg:flex-row lg:items-center lg:justify-between">
-                        <div>
-                            <h2 class="text-sm font-black text-[#0B1F44]">Log scan real-time</h2>
-                            <p class="mt-0.5 text-[11px] text-[#5B6B8A]">Riwayat pemindaian terbaru. Pilih rentang tanggal untuk melihat riwayat.</p>
+                        <div class="flex flex-col items-start gap-2.5">
+                            <div>
+                                <h2 class="text-sm font-black text-[#0B1F44]">Log Scan</h2>
+                                <p class="mt-0.5 text-[11px] text-[#5B6B8A]">Riwayat pemindaian terbaru. Pilih rentang tanggal untuk melihat riwayat.</p>
+                            </div>
+                            <span id="log_live_badge" class="log-live-badge is-live" role="status" aria-live="polite" title="Menampilkan log pemindaian terbaru secara real-time">
+                                <span class="log-live-dot" aria-hidden="true"></span>
+                                <span id="log_live_text">Real-time</span>
+                            </span>
                         </div>
                         <div class="flex flex-wrap items-center gap-2">
                             <div class="filter-capsule">
@@ -940,10 +1039,11 @@
             <div id="view_station" class="hidden space-y-5">
                 <section class="app-card page-header">
                     <div class="flex min-w-0 items-center gap-3">
-                        <img src="/static/logo_api.png" alt="Logo PT API" class="h-11 w-auto shrink-0 lg:h-12">
-                        <button onclick="toggleSidebar()" class="page-menu-btn flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-[#D9E6FA] bg-[#F5F9FF] text-[#0B1F44]" aria-label="Buka menu">
+                        <button onclick="toggleSidebar()" class="page-menu-btn menu-toggle-btn flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-[#D9E6FA] bg-[#F5F9FF] text-[#0B1F44]" aria-label="Buka menu">
                             <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.4" d="M4 6h16M4 12h16M4 18h16"></path></svg>
                         </button>
+                        <span class="header-menu-divider" aria-hidden="true"></span>
+                        <img src="/static/logo_api.png" alt="Logo PT API" class="h-11 w-auto shrink-0 lg:h-12">
                         <div class="min-w-0">
                             <h1 class="page-title">SCAN</h1>
                             <p class="page-subtitle">Pilih Station, Lalu Pilih Tujuan Akhir Sebelum Scan QR Sarana</p>
@@ -1033,10 +1133,11 @@
             <div id="view_kelola" class="hidden space-y-5">
                 <section class="app-card page-header">
                     <div class="flex min-w-0 items-center gap-3">
-                        <img src="/static/logo_api.png" alt="Logo PT API" class="h-11 w-auto shrink-0 lg:h-12">
-                        <button onclick="toggleSidebar()" class="page-menu-btn flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-[#D9E6FA] bg-[#F5F9FF] text-[#0B1F44]" aria-label="Buka menu">
+                        <button onclick="toggleSidebar()" class="page-menu-btn menu-toggle-btn flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-[#D9E6FA] bg-[#F5F9FF] text-[#0B1F44]" aria-label="Buka menu">
                             <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.4" d="M4 6h16M4 12h16M4 18h16"></path></svg>
                         </button>
+                        <span class="header-menu-divider" aria-hidden="true"></span>
+                        <img src="/static/logo_api.png" alt="Logo PT API" class="h-11 w-auto shrink-0 lg:h-12">
                         <div class="min-w-0">
                             <h1 class="page-title">KELOLA</h1>
                             <p class="page-subtitle">Master Data, Akun Pengguna, & Cetak QR</p>
@@ -1208,10 +1309,11 @@
             <div id="view_account" class="hidden space-y-5">
                 <section class="app-card page-header">
                     <div class="flex min-w-0 items-center gap-3">
-                        <img src="/static/logo_api.png" alt="Logo PT API" class="h-11 w-auto shrink-0 lg:h-12">
-                        <button onclick="toggleSidebar()" class="page-menu-btn flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-[#D9E6FA] bg-[#F5F9FF] text-[#0B1F44]" aria-label="Buka menu">
+                        <button onclick="toggleSidebar()" class="page-menu-btn menu-toggle-btn flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-[#D9E6FA] bg-[#F5F9FF] text-[#0B1F44]" aria-label="Buka menu">
                             <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.4" d="M4 6h16M4 12h16M4 18h16"></path></svg>
                         </button>
+                        <span class="header-menu-divider" aria-hidden="true"></span>
+                        <img src="/static/logo_api.png" alt="Logo PT API" class="h-11 w-auto shrink-0 lg:h-12">
                         <div class="min-w-0">
                             <h1 class="page-title">AKUN</h1>
                             <p class="page-subtitle">Informasi Akun Yang Sedang Login & Akses Keluar</p>
@@ -1498,19 +1600,62 @@
             pt_customer: { label: 'PT API ↔ Customer', out: 'customer_out', in: 'customer_in' }
         };
 
-        function toggleSidebar() {
+        function isDesktopSidebarViewport() {
+            return window.matchMedia('(min-width: 1024px)').matches;
+        }
+
+        function isSidebarOpen() {
+            if (isDesktopSidebarViewport()) {
+                return document.body.classList.contains('overview-mode')
+                    ? document.body.classList.contains('sidebar-open')
+                    : !document.body.classList.contains('sidebar-collapsed');
+            }
+            return !document.getElementById('sidebar').classList.contains('-translate-x-full');
+        }
+
+        function setSidebarOpen(open) {
             const sidebar = document.getElementById('sidebar');
             const overlay = document.getElementById('sidebar_overlay');
-            if (sidebar.classList.contains('-translate-x-full')) {
+            if (!sidebar) return;
+            if (isDesktopSidebarViewport()) {
+                document.body.classList.toggle('sidebar-open', open);
+                if (document.body.classList.contains('overview-mode')) {
+                    document.body.classList.remove('sidebar-collapsed');
+                } else {
+                    document.body.classList.toggle('sidebar-collapsed', !open);
+                }
                 sidebar.classList.remove('-translate-x-full');
-                overlay.classList.remove('hidden');
-                document.body.classList.add('sidebar-open');
-            } else {
-                sidebar.classList.add('-translate-x-full');
-                overlay.classList.add('hidden');
-                document.body.classList.remove('sidebar-open');
+                if (overlay) overlay.classList.add('hidden');
+                return;
             }
+            sidebar.classList.toggle('-translate-x-full', !open);
+            if (overlay) overlay.classList.toggle('hidden', !open);
+            document.body.classList.toggle('sidebar-open', open);
+            document.body.classList.remove('sidebar-collapsed');
         }
+
+        function toggleSidebar() {
+            setSidebarOpen(!isSidebarOpen());
+        }
+
+        window.addEventListener('resize', function() {
+            const sidebar = document.getElementById('sidebar');
+            const overlay = document.getElementById('sidebar_overlay');
+            if (!sidebar || !overlay) return;
+            if (isDesktopSidebarViewport()) {
+                sidebar.classList.remove('-translate-x-full');
+                overlay.classList.add('hidden');
+                if (document.body.classList.contains('overview-mode')) {
+                    document.body.classList.remove('sidebar-collapsed');
+                } else {
+                    document.body.classList.toggle('sidebar-open', !document.body.classList.contains('sidebar-collapsed'));
+                }
+                return;
+            }
+            sidebar.classList.add('-translate-x-full');
+            overlay.classList.add('hidden');
+            document.body.classList.remove('sidebar-open', 'sidebar-collapsed');
+        });
 
         function canFlow(menuKey) {
             const alur = menuConfigs[menuKey]?.alur;
@@ -1823,9 +1968,20 @@
             if (menuKey === 'account' && !currentUser) return;
 
             const generation = ++stationGeneration;
-            document.body.classList.toggle('overview-mode', menuKey === 'overview');
-            const sidebar = document.getElementById('sidebar');
-            if (!sidebar.classList.contains('-translate-x-full')) toggleSidebar();
+            const wasOverview = document.body.classList.contains('overview-mode');
+            const isOverview = menuKey === 'overview';
+            document.body.classList.toggle('overview-mode', isOverview);
+            if (isOverview || wasOverview) {
+                document.body.classList.remove('sidebar-collapsed');
+            }
+            if (isOverview) {
+                document.body.classList.remove('sidebar-open');
+            }
+            if (!isDesktopSidebarViewport()) {
+                document.getElementById('sidebar').classList.add('-translate-x-full');
+                document.getElementById('sidebar_overlay').classList.add('hidden');
+                document.body.classList.remove('sidebar-open', 'sidebar-collapsed');
+            }
 
             updateActiveNav(menuKey);
 
@@ -1938,13 +2094,56 @@
             await Promise.allSettled(tasks);
         }
 
+        const BULAN_SINGKAT = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'];
+
+        function formatRiwayatTanggal(value) {
+            const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value || '');
+            if (!match) return '';
+            const bulan = BULAN_SINGKAT[Number(match[2]) - 1];
+            if (!bulan) return value;
+            return `${Number(match[3])} ${bulan} ${match[1]}`;
+        }
+
+        function formatRiwayatRange(start, end) {
+            if (start && end) {
+                const awal = formatRiwayatTanggal(start);
+                const akhir = formatRiwayatTanggal(end);
+                if (!awal || !akhir) return `${start} – ${end}`;
+                const [tahunAwal, bulanAwal] = start.split('-');
+                const [tahunAkhir, bulanAkhir] = end.split('-');
+                if (tahunAwal === tahunAkhir && bulanAwal === bulanAkhir) {
+                    return `${Number(start.split('-')[2])}–${akhir}`;
+                }
+                return `${awal} – ${akhir}`;
+            }
+            if (start) return `${formatRiwayatTanggal(start) || start} – sekarang`;
+            if (end) return `sampai ${formatRiwayatTanggal(end) || end}`;
+            return '';
+        }
+
+        function updateLogLiveBadge(start, end) {
+            const badge = document.getElementById('log_live_badge');
+            const text = document.getElementById('log_live_text');
+            if (!badge || !text) return;
+            const adaFilter = Boolean(start || end);
+            badge.classList.toggle('is-live', !adaFilter);
+            badge.classList.toggle('is-history', adaFilter);
+            const rentang = adaFilter ? formatRiwayatRange(start, end) : '';
+            const label = adaFilter ? `Riwayat • ${rentang}` : 'Real-time';
+            const hint = adaFilter
+                ? `Menampilkan riwayat log pemindaian: ${rentang}`
+                : 'Menampilkan log pemindaian terbaru secara real-time';
+            if (text.textContent !== label) text.textContent = label;
+            if (badge.title !== hint) badge.title = hint;
+        }
+
         async function loadAuditLogs() {
             const lBody = document.getElementById('overview_logs_body');
             const mobileBody = document.getElementById('mobile_logs_list');
+            const start = document.getElementById('log_start_date').value;
+            const end = document.getElementById('log_end_date').value;
+            updateLogLiveBadge(start, end);
             try {
-                const start = document.getElementById('log_start_date').value;
-                const end = document.getElementById('log_end_date').value;
-
                 let url = '/api/admin/database?include_master=false';
                 if (start) url += `&start_date=${start}`;
                 if (end) url += `&end_date=${end}`;
@@ -2759,6 +2958,8 @@
                 const tbody = document.getElementById('table_body');
                 const mobileBody = document.getElementById('mobile_stock_list');
                 const selisihList = document.getElementById('selisih_list');
+                const selisihCard = document.getElementById('selisih_card');
+                const selisihSubtitle = document.getElementById('selisih_subtitle');
                 const totalJenisBadge = document.getElementById('total_jenis_badge');
 
                 tbody.innerHTML = '';
@@ -2838,6 +3039,17 @@
                 selisihList.innerHTML = warnings.length
                     ? warnings.join('')
                     : `<div class="warning-empty">✓ Semua stok sarana sesuai</div>`;
+
+                const adaSelisih = warnings.length > 0;
+                if (selisihCard) {
+                    selisihCard.classList.toggle('is-danger', adaSelisih);
+                    selisihCard.classList.toggle('is-safe', !adaSelisih);
+                }
+                if (selisihSubtitle) {
+                    selisihSubtitle.textContent = adaSelisih
+                        ? 'Unit Terdeteksi Hilang / Tertinggal'
+                        : 'Tidak ada unit hilang atau tertinggal';
+                }
 
                 if (!data.length) {
                     tbody.innerHTML = `<tr><td colspan="7" class="empty-state">Belum ada data stok.</td></tr>`;
@@ -3152,7 +3364,7 @@
         document.getElementById('login_user').autocomplete = 'username';
         document.getElementById('login_pass').autocomplete = 'current-password';
         document.addEventListener('keydown', function(event) {
-            if (event.key === 'Escape' && !document.getElementById('sidebar').classList.contains('-translate-x-full')) toggleSidebar();
+            if (event.key === 'Escape' && isSidebarOpen()) toggleSidebar();
         });
     </script>
 </body>
