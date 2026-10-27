@@ -1,3 +1,5 @@
+import base64
+import binascii
 import datetime
 import os
 import re
@@ -62,6 +64,63 @@ def verify_password(password, stored):
     except (AttributeError, ValueError):
         return False
 
+def _password_view_key():
+    secret = os.getenv('SESSION_SECRET', '')
+    if len(secret) < 32:
+        return None
+    return hashlib.sha256(('password-view:' + secret).encode()).digest()
+
+def encrypt_password_view(password):
+    """Simpan salinan password yang bisa dibuka admin tanpa menulis plaintext."""
+    if not password:
+        return ''
+    key = _password_view_key()
+    if key is None:
+        return ''
+    nonce = secrets.token_bytes(16)
+    plaintext = password.encode('utf-8')
+    stream = bytearray()
+    counter = 0
+    while len(stream) < len(plaintext):
+        stream.extend(hashlib.sha256(
+            key + nonce + counter.to_bytes(4, 'big')
+        ).digest())
+        counter += 1
+    ciphertext = bytes(a ^ b for a, b in zip(plaintext, stream))
+    tag = hmac.new(key, nonce + ciphertext, hashlib.sha256).digest()
+    return 'v1:' + base64.urlsafe_b64encode(
+        nonce + tag + ciphertext
+    ).decode('ascii')
+
+def decrypt_password_view(token):
+    if not token or not token.startswith('v1:'):
+        return ''
+    key = _password_view_key()
+    if key is None:
+        return ''
+    try:
+        raw = base64.urlsafe_b64decode(token[3:].encode('ascii'))
+        if len(raw) < 48:
+            return ''
+        nonce, tag, ciphertext = raw[:16], raw[16:48], raw[48:]
+        expected = hmac.new(
+            key, nonce + ciphertext, hashlib.sha256
+        ).digest()
+        if not hmac.compare_digest(tag, expected):
+            return ''
+        stream = bytearray()
+        counter = 0
+        while len(stream) < len(ciphertext):
+            stream.extend(hashlib.sha256(
+                key + nonce + counter.to_bytes(4, 'big')
+            ).digest())
+            counter += 1
+        return bytes(
+            a ^ b for a, b in zip(ciphertext, stream)
+        ).decode('utf-8')
+    except (ValueError, UnicodeDecodeError, binascii.Error):
+        return ''
+
 def lock_writes(session):
     if IS_POSTGRES:
         session.execute(text('SELECT pg_advisory_xact_lock(530051)'))
@@ -93,6 +152,7 @@ class User(Base):
     id = Column(Integer, primary_key=True, autoincrement=True)
     username = Column(String, unique=True, index=True)
     password = Column(String)
+    password_view = Column(Text, default='', nullable=False)
     role = Column(String)
     nama_lengkap = Column(String)
     npk = Column(String)
@@ -171,6 +231,7 @@ def migrate_tracking_v2(connection):
         'users': {
             'scan_permissions': "TEXT NOT NULL DEFAULT '[]'",
             'vendor_scope': "VARCHAR(100) NOT NULL DEFAULT ''",
+            'password_view': "TEXT NOT NULL DEFAULT ''",
         },
         'unloading_groups': {
             'kind': "VARCHAR(10) NOT NULL DEFAULT 'vendor'",
@@ -243,12 +304,30 @@ def init_db():
         Base.metadata.create_all(connection)
         migrate_tracking_v2(connection)
         with Session(bind=connection) as session:
+            password = os.getenv('INITIAL_ADMIN_PASSWORD', '')
             # Database awal harus baru; akun SQLite lama tidak diimpor diam-diam.
             if not session.query(User).first():
-                password = os.getenv('INITIAL_ADMIN_PASSWORD', '')
-                if not re.fullmatch(r'[A-Za-z0-9_.-]{3,50}', PRIMARY_ADMIN) or not 12 <= len(password) <= 256:
-                    raise RuntimeError('Isi INITIAL_ADMIN_USERNAME dan INITIAL_ADMIN_PASSWORD minimal 12 karakter.')
-                session.add(User(username=PRIMARY_ADMIN, password=hash_password(password), role='admin',
-                                 nama_lengkap=os.getenv('INITIAL_ADMIN_NAME', 'Administrator'),
-                                 npk='', jabatan='Administrator'))
+                if not re.fullmatch(r'[A-Za-z0-9_.-]{3,50}', PRIMARY_ADMIN) or not 8 <= len(password) <= 256:
+                    raise RuntimeError('Isi INITIAL_ADMIN_USERNAME dan INITIAL_ADMIN_PASSWORD minimal 8 karakter.')
+                session.add(User(
+                    username=PRIMARY_ADMIN,
+                    password=hash_password(password),
+                    password_view=encrypt_password_view(password),
+                    role='admin',
+                    nama_lengkap=os.getenv('INITIAL_ADMIN_NAME', 'Administrator'),
+                    npk='',
+                    jabatan='Administrator',
+                ))
                 session.flush()
+            else:
+                admin = session.query(User).filter_by(
+                    username=PRIMARY_ADMIN
+                ).first()
+                if (
+                    admin
+                    and password
+                    and verify_password(password, admin.password)
+                    and not decrypt_password_view(admin.password_view)
+                ):
+                    admin.password_view = encrypt_password_view(password)
+                    session.flush()

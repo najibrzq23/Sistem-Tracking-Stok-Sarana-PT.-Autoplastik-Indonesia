@@ -18,7 +18,8 @@ from starlette.concurrency import run_in_threadpool
 from sqlalchemy import text, func, or_
 from database import (BASE_DIR, IS_CLOUD, IS_POSTGRES, PRIMARY_ADMIN, SessionLocal,
                       Sarana, LogScan, User, SyncJob, LoginAttempt, AccountAudit, UnloadingGroup, init_db,
-                      lock_writes, hash_password, verify_password, now)
+                      lock_writes, hash_password, verify_password,
+                      encrypt_password_view, decrypt_password_view, now)
 from sync_sheets import import_data, enqueue, flush_one, configured
 
 secret = os.getenv('SESSION_SECRET', '')
@@ -26,6 +27,7 @@ if len(secret) < 32:
     if IS_CLOUD:
         raise RuntimeError('SESSION_SECRET minimal 32 karakter wajib diisi.')
     secret = secrets.token_urlsafe(48)
+os.environ['SESSION_SECRET'] = secret
 
 @asynccontextmanager
 async def lifespan(app):
@@ -700,6 +702,9 @@ def users():
                     is_primary=user.username == PRIMARY_ADMIN,
                     scan_permissions=allowed_scans(user),
                     vendor_scope=user.vendor_scope or '',
+                    password_view=decrypt_password_view(
+                        user.password_view
+                    ),
                 )
                 for user in session.query(User)
                 .order_by(User.id)
@@ -729,8 +734,8 @@ def create_user(
     )
 
     require(
-        12 <= len(password) <= 256,
-        'Password minimal 12 dan maksimal 256 karakter.',
+        8 <= len(password) <= 256,
+        'Password minimal 8 dan maksimal 256 karakter.',
     )
 
     require(
@@ -761,6 +766,7 @@ def create_user(
         session.add(User(
             username=username,
             password=hash_password(password),
+            password_view=encrypt_password_view(password),
             role=role,
             nama_lengkap=nama_lengkap.strip(),
             npk=npk.strip(),
@@ -784,7 +790,7 @@ def create_user(
 @app.post('/api/admin/users/reset-password/{user_id}')
 def reset_password(user_id:int, request:Request, password:str=Form(...),
                    confirm_password:str=Form(...)):
-    require(12 <= len(password) <= 256, 'Password minimal 12 dan maksimal 256 karakter.')
+    require(8 <= len(password) <= 256, 'Password minimal 8 dan maksimal 256 karakter.')
     require(password == confirm_password, 'Konfirmasi password tidak sama.')
     with SessionLocal() as session:
         lock_writes(session)
@@ -792,6 +798,7 @@ def reset_password(user_id:int, request:Request, password:str=Form(...),
         require(user is not None, 'Akun tidak ditemukan.', 404)
         require(not verify_password(password, user.password), 'Gunakan password baru yang berbeda.')
         user.password = hash_password(password)
+        user.password_view = encrypt_password_view(password)
         key = hashlib.sha256(user.username.lower().encode()).hexdigest()
         attempt = session.get(LoginAttempt, key)
         if attempt:
