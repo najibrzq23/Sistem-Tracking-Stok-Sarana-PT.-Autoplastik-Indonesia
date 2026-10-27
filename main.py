@@ -720,12 +720,18 @@ def dashboard():
                     L2_Vendor=0,
                     Customer=0,
                     Lost=0,
+                    Lost_No=[],
                     Vendor_Detail={},
                     Customer_Detail={},
                 ),
             )
 
             group['Total_QTY'] += 1
+
+            if status == 'LOST_IN_TRANSIT':
+                lost_no = (unit.No_Sarana or unit.ID_Sarana or '').strip()
+                if lost_no:
+                    group['Lost_No'].append(lost_no)
 
             column = {
                 'AT_API': 'PT_API',
@@ -760,6 +766,7 @@ def dashboard():
                 )
 
     for group in grouped.values():
+        group['Lost_No'] = sorted(group['Lost_No'])
         for key in (
             'Vendor_Detail',
             'Customer_Detail',

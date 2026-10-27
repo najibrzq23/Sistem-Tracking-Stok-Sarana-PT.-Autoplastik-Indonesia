@@ -121,18 +121,22 @@
         .btn-primary { background: var(--primary); color: #fff; box-shadow: 0 8px 18px rgba(31, 95, 224, .22); }
         .btn-primary:hover { background: var(--primary-dark); transform: translateY(-2px); box-shadow: 0 12px 22px rgba(31, 95, 224, .28); }
         .btn-outline { background: #fff; border-color: #C9DCF6; color: var(--primary); }
-        .btn-outline:hover { background: var(--primary-soft); border-color: #A9C6F4; }
+        .btn-outline:hover { background: var(--primary-soft); border-color: #A9C6F4; transform: translateY(-2px); box-shadow: 0 10px 20px rgba(31, 95, 224, .12); }
         .btn-ghost { background: #F5F9FF; border-color: var(--line); color: var(--ink); }
-        .btn-ghost:hover { background: var(--primary-soft); }
+        .btn-ghost:hover { background: var(--primary-soft); transform: translateY(-2px); box-shadow: 0 10px 20px rgba(15, 45, 90, .08); }
         .btn-danger-outline { background: #fff; border-color: #F3C2C2; color: var(--danger); }
-        .btn-danger-outline:hover { background: var(--danger-soft); }
+        .btn-danger-outline:hover { background: var(--danger-soft); transform: translateY(-2px); box-shadow: 0 10px 20px rgba(198, 40, 40, .12); }
         .btn-danger { background: var(--danger); color: #fff; box-shadow: 0 8px 18px rgba(198, 40, 40, .20); }
         .btn-danger:hover { background: var(--danger-dark); transform: translateY(-2px); box-shadow: 0 12px 22px rgba(198, 40, 40, .28); }
         .btn-warning { background: var(--warning); color: #fff; }
+        .btn-warning:hover { background: #9A5005; transform: translateY(-2px); box-shadow: 0 12px 22px rgba(180, 95, 6, .28); }
         .btn-success { background: var(--success); color: #fff; box-shadow: 0 8px 18px rgba(10, 127, 85, .20); }
         .btn-success:hover { background: var(--success-dark); transform: translateY(-2px); box-shadow: 0 12px 22px rgba(10, 127, 85, .28); }
         .btn-sm { min-height: 36px; padding: 8px 12px; font-size: 12px; border-radius: 10px; }
         .btn-block { width: 100%; }
+        #sidebar .sidebar-logout-btn { min-height: 38px; }
+        .modal-close-btn { transition: transform .18s ease, box-shadow .18s ease, background .18s ease; }
+        .modal-close-btn:hover { background: var(--primary-soft); transform: translateY(-2px); box-shadow: 0 8px 16px rgba(31, 95, 224, .14); }
 
         .field-label {
             display: block;
@@ -350,7 +354,7 @@
             align-items: flex-start;
             gap: 12px;
             padding: 14px;
-            border: 1px solid #F08A8A;
+            border: 2px solid #F08A8A;
             border-radius: 16px;
             background: linear-gradient(135deg, #FFF5F5 0%, #FFFFFF 100%);
             animation: warning-glow 2.2s ease-in-out infinite;
@@ -385,8 +389,8 @@
         }
         .warning-sub { margin-top: 5px; color: #A33A3A; font-size: 11px; font-weight: 700; line-height: 1.5; }
         @keyframes warning-glow {
-            0%, 100% { box-shadow: 0 8px 22px rgba(198, 40, 40, .12), 0 0 0 0 rgba(198, 40, 40, .10); border-color: #F08A8A; }
-            50% { box-shadow: 0 12px 32px rgba(198, 40, 40, .28), 0 0 0 5px rgba(198, 40, 40, .08); border-color: #FF4D4D; }
+            0%, 100% { box-shadow: 0 0 0 2px rgba(198, 40, 40, .10), 0 10px 26px rgba(198, 40, 40, .18); border-color: #F08A8A; }
+            50% { box-shadow: 0 0 0 6px rgba(198, 40, 40, .16), 0 14px 34px rgba(198, 40, 40, .30); border-color: #FF4D4D; }
         }
         @keyframes warning-icon-bob {
             0%, 100% { transform: translateY(0) scale(1); }
@@ -772,6 +776,10 @@
         .swal2-confirm { background: var(--primary) !important; border-radius: 12px !important; font-weight: 800 !important; }
         .swal2-cancel { background: #fff !important; border: 1px solid var(--line) !important; color: var(--primary) !important; border-radius: 12px !important; font-weight: 800 !important; }
         .swal2-deny { background: var(--danger) !important; border-radius: 12px !important; font-weight: 800 !important; }
+        .swal2-confirm, .swal2-cancel, .swal2-deny { transition: transform .18s ease, box-shadow .18s ease, background .18s ease; }
+        .swal2-confirm:hover { transform: translateY(-2px); box-shadow: 0 10px 20px rgba(31, 95, 224, .28); }
+        .swal2-cancel:hover { background: var(--primary-soft) !important; transform: translateY(-2px); box-shadow: 0 10px 20px rgba(31, 95, 224, .12); }
+        .swal2-deny:hover { background: var(--danger-dark) !important; transform: translateY(-2px); box-shadow: 0 10px 20px rgba(198, 40, 40, .28); }
         .swal2-input, .swal2-select, .swal2-textarea {
             width: 100% !important;
             margin: 0 0 10px !important;
@@ -793,19 +801,9 @@
             body.overview-mode #sidebar_overlay:not(.hidden) { display: block !important; }
         }
         .page-menu-btn { display: none !important; }
-        .header-menu-divider {
-            display: none;
-            width: 3px;
-            height: 34px;
-            flex: 0 0 auto;
-            border-radius: 999px;
-            background: #fff;
-            box-shadow: 0 0 0 1px #D9E6FA, 0 2px 8px rgba(11, 31, 68, .06);
-        }
         @media screen and (min-width: 1024px) {
             body.overview-mode .page-menu-btn.overview-only { display: inline-flex !important; }
             body.sidebar-collapsed:not(.overview-mode) .page-menu-btn.menu-toggle-btn { display: inline-flex !important; }
-            body.sidebar-collapsed:not(.overview-mode) .header-menu-divider { display: block; }
             .sidebar-close { display: inline-flex !important; }
             body.overview-mode.sidebar-open .sidebar-close { display: inline-flex !important; }
         }
@@ -898,7 +896,10 @@
                         <p id="user_display_role" class="mt-0.5 truncate text-[10px] font-extrabold uppercase tracking-[.08em] text-[#1F5FE0]">-</p>
                     </div>
                 </div>
-                <button onclick="logout()" class="mt-3 w-full rounded-xl border border-[#F3C2C2] bg-white px-3 py-2 text-xs font-extrabold text-[#C62828]">Keluar</button>
+                <button onclick="logout()" class="btn btn-danger-outline btn-sm sidebar-logout-btn mt-3 w-full">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><path d="m16 17 5-5-5-5"></path><path d="M21 12H9"></path></svg>
+                    Keluar
+                </button>
             </div>
         </div>
     </aside>
@@ -1042,7 +1043,6 @@
                         <button onclick="toggleSidebar()" class="page-menu-btn menu-toggle-btn flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-[#D9E6FA] bg-[#F5F9FF] text-[#0B1F44]" aria-label="Buka menu">
                             <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.4" d="M4 6h16M4 12h16M4 18h16"></path></svg>
                         </button>
-                        <span class="header-menu-divider" aria-hidden="true"></span>
                         <img src="/static/logo_api.png" alt="Logo PT API" class="h-11 w-auto shrink-0 lg:h-12">
                         <div class="min-w-0">
                             <h1 class="page-title">SCAN</h1>
@@ -1136,7 +1136,6 @@
                         <button onclick="toggleSidebar()" class="page-menu-btn menu-toggle-btn flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-[#D9E6FA] bg-[#F5F9FF] text-[#0B1F44]" aria-label="Buka menu">
                             <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.4" d="M4 6h16M4 12h16M4 18h16"></path></svg>
                         </button>
-                        <span class="header-menu-divider" aria-hidden="true"></span>
                         <img src="/static/logo_api.png" alt="Logo PT API" class="h-11 w-auto shrink-0 lg:h-12">
                         <div class="min-w-0">
                             <h1 class="page-title">KELOLA</h1>
@@ -1312,7 +1311,6 @@
                         <button onclick="toggleSidebar()" class="page-menu-btn menu-toggle-btn flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-[#D9E6FA] bg-[#F5F9FF] text-[#0B1F44]" aria-label="Buka menu">
                             <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.4" d="M4 6h16M4 12h16M4 18h16"></path></svg>
                         </button>
-                        <span class="header-menu-divider" aria-hidden="true"></span>
                         <img src="/static/logo_api.png" alt="Logo PT API" class="h-11 w-auto shrink-0 lg:h-12">
                         <div class="min-w-0">
                             <h1 class="page-title">AKUN</h1>
@@ -1410,7 +1408,7 @@
                     <h3 class="text-lg font-black text-[#0B1F44]">Tambah Stok Sarana</h3>
                     <p class="mt-1 text-xs text-[#5B6B8A]">Generasi otomatis ID &amp; QR Code sarana.</p>
                 </div>
-                <button onclick="closeAddStokModal()" class="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-[#D9E6FA] bg-[#F5F9FF] text-[#5B6B8A]" aria-label="Tutup">✕</button>
+                <button onclick="closeAddStokModal()" class="modal-close-btn flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-[#D9E6FA] bg-[#F5F9FF] text-[#5B6B8A]" aria-label="Tutup">✕</button>
             </div>
             <form onsubmit="handleAddStokSubmit(event)" class="space-y-4">
                 <div>
@@ -1443,7 +1441,7 @@
                     <h3 class="text-lg font-black text-[#C62828]">Hapus Stok Sarana (Defect / NG)</h3>
                     <p class="mt-1 text-xs text-[#5B6B8A]">Pilih nama part/prefix ID , lalu pilih nomor unit yang ingin dikeluarkan dari stok.</p>
                 </div>
-                <button onclick="closeDeleteNgModal()" class="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-[#D9E6FA] bg-[#F5F9FF] text-[#5B6B8A]" aria-label="Tutup">✕</button>
+                <button onclick="closeDeleteNgModal()" class="modal-close-btn flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-[#D9E6FA] bg-[#F5F9FF] text-[#5B6B8A]" aria-label="Tutup">✕</button>
             </div>
             <form onsubmit="handleDeleteNgSubmit(event)" class="space-y-4">
                 <div>
@@ -3019,15 +3017,16 @@
                     }
 
                     if (isSelisih) {
+                        const lostNumbers = (item.Lost_No || []).filter(Boolean);
+                        const lostLabel = lostNumbers.length
+                            ? `${item.Lost} unit no ${lostNumbers.join(', ')} hilang`
+                            : `${item.Lost} unit hilang`;
                         warnings.push(`
                             <div class="warning-item">
-                                <div class="warning-icon" aria-hidden="true">
-                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M12 9v4"></path><path d="M12 17h.01"></path><path d="M10.3 3.9 2.8 17a2 2 0 0 0 1.7 3h15a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"></path></svg>
-                                </div>
                                 <div class="min-w-0 flex-1">
                                     <div class="flex flex-wrap items-center gap-2">
                                         <span class="warning-part">${safeText(item.Nama_Part)}</span>
-                                        <span class="warning-badge">${item.Lost} unit hilang</span>
+                                        <span class="warning-badge">${safeText(lostLabel)}</span>
                                     </div>
                                     <p class="warning-sub">Terdeteksi Hilang / Tertinggal</p>
                                 </div>
