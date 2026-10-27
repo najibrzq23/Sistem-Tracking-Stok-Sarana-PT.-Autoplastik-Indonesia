@@ -8,10 +8,11 @@ import secrets
 import time
 import logging
 import hmac
+from io import BytesIO
 from database import (VendorRecord, DeletedVendor, CustomerRecord,)
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, Form, Request, BackgroundTasks, HTTPException
-from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi.responses import HTMLResponse, JSONResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from starlette.middleware.sessions import SessionMiddleware
 from starlette.concurrency import run_in_threadpool
@@ -610,6 +611,91 @@ def database(
         'master': master,
         'logs': logs,
     }
+
+@app.get('/api/admin/sarana/export.xlsx')
+def export_master_xlsx(request: Request):
+    require(
+        request.state.role == 'admin',
+        'Master data khusus admin.',
+        403,
+    )
+
+    from openpyxl import Workbook
+    from openpyxl.styles import Alignment, Font, PatternFill
+    from openpyxl.utils import get_column_letter
+
+    def excel_value(value):
+        return '' if value is None else str(value)
+
+    workbook = Workbook()
+    worksheet = workbook.active
+    worksheet.title = 'Master Data'
+    worksheet.append([
+        'ID Sarana',
+        'Nama Sarana',
+        'No',
+        'Vendor / Customer',
+        'Status',
+        'Scan Terakhir',
+        'Sejak Scan (hari)',
+    ])
+
+    with SessionLocal() as session:
+        for unit in session.query(Sarana).order_by(Sarana.ID_Sarana):
+            worksheet.append([
+                excel_value(unit.ID_Sarana),
+                excel_value(unit.Nama_Sarana),
+                excel_value(unit.No_Sarana),
+                excel_value(current_partner(unit) or '-'),
+                excel_value(unit.Status_Saat_Ini or '-'),
+                excel_value(
+                    unit.Last_Scan_At.strftime('%Y-%m-%d %H:%M:%S')
+                    if unit.Last_Scan_At
+                    else ''
+                ),
+                (
+                    max(0, (now() - unit.Last_Scan_At).days)
+                    if unit.Last_Scan_At
+                    else ''
+                ),
+            ])
+
+    # Teks data ditulis sebagai string agar tidak dieksekusi sebagai formula.
+    for row in worksheet.iter_rows(min_row=2):
+        for cell in row:
+            if isinstance(cell.value, str):
+                cell.data_type = 's'
+
+    header_fill = PatternFill('solid', fgColor='1F5FE0')
+    header_font = Font(color='FFFFFF', bold=True)
+    header_alignment = Alignment(horizontal='center', vertical='center')
+    for cell in worksheet[1]:
+        cell.fill = header_fill
+        cell.font = header_font
+        cell.alignment = header_alignment
+
+    worksheet.freeze_panes = 'A2'
+    worksheet.auto_filter.ref = worksheet.dimensions
+    worksheet.sheet_view.showGridLines = False
+    worksheet.row_dimensions[1].height = 22
+
+    for index, column in enumerate(worksheet.columns, start=1):
+        width = max(len(str(cell.value or '')) for cell in column)
+        worksheet.column_dimensions[get_column_letter(index)].width = min(max(width + 2, 10), 45)
+
+    workbook.properties.creator = 'PT API Tracking'
+    workbook.properties.title = 'Master Data Sarana'
+
+    output = BytesIO()
+    workbook.save(output)
+    output.seek(0)
+
+    filename = f'Master_Data_Sarana_{now().strftime("%Y%m%d_%H%M%S")}.xlsx'
+    return StreamingResponse(
+        output,
+        media_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        headers={'Content-Disposition': f'attachment; filename="{filename}"'},
+    )
 
 @app.get('/api/dashboard')
 def dashboard():

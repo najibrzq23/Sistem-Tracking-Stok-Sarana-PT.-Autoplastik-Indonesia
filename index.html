@@ -273,22 +273,6 @@
         .data-table tbody tr:hover { background: #F8FBFF; }
         .data-table .num { text-align: center; font-weight: 800; }
 
-        .sync-banner {
-            display: flex;
-            align-items: center;
-            flex-wrap: wrap;
-            gap: 8px;
-            padding: 12px 16px;
-            border: 1px solid #F3D5A6;
-            border-radius: 16px;
-            background: #FFF8EC;
-            color: #8A4A02;
-            font-size: 13px;
-            font-weight: 600;
-            line-height: 1.5;
-        }
-        #sync_text { overflow-wrap: anywhere; }
-
         .part-dot {
             --dot-rgb: 31, 95, 224;
             display: inline-block;
@@ -832,12 +816,6 @@
 
             <!-- 1. OVERVIEW -->
             <div id="view_overview" class="space-y-5">
-                <div id="sync_banner" class="sync-banner hidden">
-                    <span class="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-[#B45F06]/10 text-[#B45F06]">!</span>
-                    <span id="sync_text"></span>
-                    <button id="sync_review" class="hidden underline ml-1 font-extrabold" onclick="reviewSync()">Periksa pengiriman</button>
-                </div>
-
                 <section class="app-card page-header">
                     <div class="flex min-w-0 items-center gap-3">
                         <img src="/static/logo_api.png" alt="Logo PT API" class="h-11 w-auto shrink-0 lg:hidden">
@@ -1085,7 +1063,11 @@
                                 Buka Google Sheets (arsip) ↗
                             </a>
                             <button onclick="openDeleteNgModal()" class="btn btn-danger-outline">Hapus stok (NG)</button>
-                            <button id="master_refresh_btn" onclick="refreshMasterData()" class="btn btn-ghost ml-auto">
+                            <button id="master_export_btn" onclick="exportMasterToExcel()" class="btn btn-success ml-auto">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M12 3v12"></path><path d="m7 10 5 5 5-5"></path><path d="M5 21h14"></path></svg>
+                                Ekspor Excel
+                            </button>
+                            <button id="master_refresh_btn" onclick="refreshMasterData()" class="btn btn-ghost">
                                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M20 12a8 8 0 1 1-2.3-5.6"></path><path d="M20 4v6h-6"></path></svg>
                                 Refresh
                             </button>
@@ -1428,14 +1410,6 @@
                 const res = await fetch('/api/sync/status');
                 if (!res.ok) return false;
                 syncState = await res.json();
-                const showSyncWarning = syncState.configured && syncState.pending > 0;
-                document.getElementById('sync_banner').classList.toggle('hidden', !showSyncWarning);
-                document.getElementById('sync_text').textContent = syncState.configured
-                    ? (syncState.pending
-                        ? `Salinan Sheets: ${syncState.pending} pengiriman belum selesai (${syncState.state}). ${syncState.message}`
-                        : 'Salinan perubahan ke Sheets: seluruh pengiriman terkonfirmasi.')
-                    : '';
-                document.getElementById('sync_review').classList.toggle('hidden', !syncState.reviewable);
                 return true;
             } catch (error) {
                 console.warn('Status Sheets:', error.message);
@@ -2291,6 +2265,60 @@
             } finally {
                 button.disabled = false;
                 button.textContent = 'Refresh';
+            }
+        }
+
+        async function exportMasterToExcel() {
+            const button = document.getElementById('master_export_btn');
+            if (!button || button.disabled) return;
+
+            const originalHtml = button.innerHTML;
+            button.disabled = true;
+            button.textContent = 'Menyiapkan...';
+
+            try {
+                const response = await fetch('/api/admin/sarana/export.xlsx');
+                if (!response.ok) {
+                    let message = 'Gagal mengekspor master data.';
+                    try {
+                        const data = await response.json();
+                        message = data.message || message;
+                    } catch (_) {}
+                    throw new Error(message);
+                }
+
+                const blob = await response.blob();
+                const disposition = response.headers.get('Content-Disposition') || '';
+                const filenameMatch = disposition.match(/filename="?([^";]+)"?/i);
+                const filename = filenameMatch ? filenameMatch[1] : 'Master_Data_Sarana.xlsx';
+                const url = URL.createObjectURL(blob);
+                const link = document.createElement('a');
+                link.href = url;
+                link.download = filename;
+                document.body.appendChild(link);
+                link.click();
+                link.remove();
+                setTimeout(() => URL.revokeObjectURL(url), 1000);
+
+                await Swal.fire({
+                    toast: true,
+                    position: 'top',
+                    icon: 'success',
+                    title: 'File Excel master data berhasil diunduh',
+                    timer: 1600,
+                    showConfirmButton: false,
+                    customClass: {popup: 'app-swal'}
+                });
+            } catch (error) {
+                await Swal.fire({
+                    icon: 'error',
+                    title: 'Ekspor gagal',
+                    text: error.message || 'Koneksi terganggu. Coba lagi.',
+                    customClass: {popup: 'app-swal'}
+                });
+            } finally {
+                button.disabled = false;
+                button.innerHTML = originalHtml;
             }
         }
 
