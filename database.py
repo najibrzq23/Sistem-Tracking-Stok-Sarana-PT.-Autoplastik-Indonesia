@@ -106,6 +106,7 @@ class UnloadingGroup(Base):
     kind = Column(String(10), default='vendor', nullable=False, index=True)
     actor = Column(String, nullable=False, index=True)
     vendor = Column(String, nullable=False)
+    customer = Column(String(100), default='', nullable=False)
     part = Column(String, nullable=False)
     snapshot = Column(Text, nullable=False)
     state = Column(String, default='open', nullable=False, index=True)
@@ -173,6 +174,7 @@ def migrate_tracking_v2(connection):
         },
         'unloading_groups': {
             'kind': "VARCHAR(10) NOT NULL DEFAULT 'vendor'",
+            'customer': "VARCHAR(100) NOT NULL DEFAULT ''",
         },
     }
 

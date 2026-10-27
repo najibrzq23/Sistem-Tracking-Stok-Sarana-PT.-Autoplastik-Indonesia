@@ -476,18 +476,7 @@
             border-radius: 16px;
             background: #F8FBFF;
         }
-        .user-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin-top: 10px; }
-        .link-action {
-            border: 0;
-            background: transparent;
-            color: var(--primary);
-            padding: 0;
-            font-size: 12px;
-            font-weight: 800;
-            cursor: pointer;
-        }
-        .link-action:hover { text-decoration: underline; }
-        .link-action.danger { color: var(--danger); }
+        .user-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 12px; }
 
         .access-groups { display: grid; gap: 10px; text-align: left; }
         .access-group { padding: 12px; border: 1px solid var(--line); border-radius: 14px; background: #F8FBFF; }
@@ -991,8 +980,8 @@
 
                 <div class="desktop-only segmented station-tabs" aria-label="Pilih station scan">
                     <button class="station-tab" data-station="pt_vendor" onclick="selectStationGroup('pt_vendor')">PT API ↔ Vendor</button>
-                    <button class="station-tab" data-station="pt_customer" onclick="selectStationGroup('pt_customer')">PT API ↔ Customer</button>
                     <button class="station-tab" data-station="vendor" onclick="selectStationGroup('vendor')">Station Vendor</button>
+                    <button class="station-tab" data-station="pt_customer" onclick="selectStationGroup('pt_customer')">PT API ↔ Customer</button>
                 </div>
 
                 <div class="flex flex-col gap-3 md:flex-row md:items-center">
@@ -1050,6 +1039,7 @@
                             <button id="station_submit_btn" onclick="submitCurrentStation()" class="btn btn-primary btn-block scan-submit-btn">Kirim ID Manual</button>
                             <button id="btn_finish_vendor_unloading" onclick="finishVendorUnloading()" class="btn btn-warning btn-block hidden">Selesai Unloading Vendor</button>
                             <button id="btn_finish_api_unloading" onclick="finishApiUnloading()" class="btn btn-success btn-block hidden">Selesai Unloading API</button>
+                            <button id="btn_finish_customer_unloading" onclick="finishCustomerUnloading()" class="btn btn-primary btn-block hidden">Selesai Unloading Customer</button>
                         </div>
 
                         <div class="mt-auto pt-4">
@@ -1524,14 +1514,14 @@
             },
             'customer_in': {
                 badge: 'CUSTOMER → PT API', badgeTone: 'success', group: 'pt_customer', direction: 'in',
-                title: 'Penerimaan dari Customer', desc: 'Lakukan scan setelah part sarana diterima di PT API.', alur: '6'
+                title: 'Penerimaan dari Customer', desc: 'Lakukan scan setelah part sarana diterima di PT API.', alur: '6', showCustomerUnloadingBtn: true
             }
         };
 
         const stationGroups = {
             pt_vendor: { label: 'PT API ↔ Vendor', out: 'api_out', in: 'api_in' },
-            pt_customer: { label: 'PT API ↔ Customer', out: 'customer_out', in: 'customer_in' },
-            vendor: { label: 'Station Vendor', out: 'vendor_out', in: 'vendor_in' }
+            vendor: { label: 'Station Vendor', out: 'vendor_out', in: 'vendor_in' },
+            pt_customer: { label: 'PT API ↔ Customer', out: 'customer_out', in: 'customer_in' }
         };
 
         function toggleSidebar() {
@@ -1829,6 +1819,7 @@
             submit.textContent = 'Kirim ID Manual';
             document.getElementById('btn_finish_vendor_unloading').classList.toggle('hidden', !cfg.showVendorUnloadingBtn);
             document.getElementById('btn_finish_api_unloading').classList.toggle('hidden', !cfg.showApiUnloadingBtn);
+            document.getElementById('btn_finish_customer_unloading').classList.toggle('hidden', !cfg.showCustomerUnloadingBtn);
             document.getElementById('station_vendor_box').classList.toggle('hidden', cfg.alur !== '1');
             document.getElementById('station_customer_box').classList.toggle('hidden', cfg.alur !== '5');
         }
@@ -2325,7 +2316,7 @@
                             const roleBadge = `<span class="status-badge ${roleTone(u.role)}">${roleLabel(u.role).toUpperCase()}</span>`;
                             const actionBtn = u.is_primary
                                 ? `<span class="text-xs font-semibold text-[#8EA0BC]">Akun utama</span>`
-                                : `<button onclick="deleteUser(${u.id}, '${u.username}')" class="link-action danger">Hapus</button>`;
+                                : `<button type="button" onclick="deleteUser(${u.id}, '${u.username}')" class="btn btn-sm btn-danger-outline">Hapus</button>`;
 
                             return `
                                 <div class="user-card">
@@ -2338,8 +2329,8 @@
                                         ${roleBadge}
                                     </div>
                                     <div class="user-actions">
-                                        <button onclick="resetUserPassword(${u.id}, '${u.username}')" class="link-action">Reset sandi</button>
-                                        ${u.role === 'member' ? `<button onclick="editScanAccess(${u.id})" class="link-action">Izin scan</button>` : ''}
+                                        <button type="button" onclick="resetUserPassword(${u.id}, '${u.username}')" class="btn btn-sm btn-outline">Reset sandi</button>
+                                        ${u.role === 'member' ? `<button type="button" onclick="editScanAccess(${u.id})" class="btn btn-sm btn-outline">Izin scan</button>` : ''}
                                         ${actionBtn}
                                     </div>
                                 </div>
@@ -2848,6 +2839,13 @@
                 title: 'Selesai Unloading API?',
                 successTitle: 'Unloading API Selesai',
                 empty: 'Belum ada part yang mulai diterima di PT API pada sesi Anda. Stok truk tidak diubah.'
+            },
+            customer: {
+                previewUrl: '/api/unloading/preview?kind=customer',
+                finishUrl: '/api/finish-customer-unloading',
+                title: 'Selesai Unloading Customer?',
+                successTitle: 'Unloading Customer Selesai',
+                empty: 'Belum ada part yang mulai diterima dari customer pada sesi Anda. Stok truk tidak diubah.'
             }
         };
 
@@ -2857,6 +2855,10 @@
 
         async function finishApiUnloading() {
             return finishUnloading('api');
+        }
+
+        async function finishCustomerUnloading() {
+            return finishUnloading('customer');
         }
 
         async function finishUnloading(kind) {
@@ -2872,7 +2874,7 @@
                     return;
                 }
                 const rows = preview.groups.map(g => `
-                    <p style="margin:6px 0 2px;"><strong>${safeText(g.vendor)} / ${safeText(g.part)}</strong>: ${g.missing_ids.length} selisih</p>
+                    <p style="margin:6px 0 2px;"><strong>${safeText(g.partner || g.vendor)} / ${safeText(g.part)}</strong>: ${g.missing_ids.length} selisih</p>
                     <p style="margin:0 0 8px;font-size:12px;overflow-wrap:anywhere;color:#5B6B8A">${g.missing_ids.map(safeText).join(', ') || 'Lengkap'}</p>
                 `).join('<hr style="border:0;border-top:1px solid #D9E6FA;margin:8px 0">');
                 const confirm = await Swal.fire({

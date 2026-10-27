@@ -57,7 +57,7 @@ async def access_control(request: Request, call_next):
             admin_paths = ['/api/admin/users','/api/admin/sarana/','/api/sync']
             if any(path.startswith(p) for p in admin_paths) and user.role != 'admin':
                 return JSONResponse({'message':'Akses khusus admin.'}, status_code=403)
-            if path in ['/api/scan','/api/finish-vendor-unloading','/api/finish-api-unloading','/api/unloading/preview','/api/sheets/drain'] and user.role not in ['admin','member']:
+            if path in ['/api/scan','/api/finish-vendor-unloading','/api/finish-api-unloading','/api/finish-customer-unloading','/api/unloading/preview','/api/sheets/drain'] and user.role not in ['admin','member']:
                 return JSONResponse({'message':'Akses khusus operator atau admin.'}, status_code=403)
     response = await call_next(request)
     if path.startswith('/api/'):
@@ -993,7 +993,16 @@ def scan(
         recovery = (
             current == 'LOST_IN_TRANSIT'
             and user.role == 'admin'
-            and alur in ('2', '4')
+            and (
+                (
+                    alur in ('2', '4')
+                    and bool(unit.Vendor)
+                )
+                or (
+                    alur == '6'
+                    and bool(unit.Customer)
+                )
+            )
         )
 
         require(
@@ -1051,6 +1060,7 @@ def scan(
         unloading_kind = {
             '2': 'vendor',
             '4': 'api',
+            '6': 'customer',
         }.get(alur)
 
         if unloading_kind:
@@ -1140,6 +1150,7 @@ UNLOADING_KINDS = {
     'vendor': {
         'flow': '2',
         'status': 'IN_TRANSIT_OUT',
+        'partner_field': 'vendor',
         'name': 'Vendor',
         'event': 'HILANG / SELISIH UNLOADING VENDOR',
         'empty': 'Belum ada part yang mulai diterima pada sesi Anda. Stok truk tidak diubah.',
@@ -1147,9 +1158,18 @@ UNLOADING_KINDS = {
     'api': {
         'flow': '4',
         'status': 'IN_TRANSIT_IN',
+        'partner_field': 'vendor',
         'name': 'API',
         'event': 'HILANG / SELISIH UNLOADING API',
         'empty': 'Belum ada part yang mulai diterima di PT API pada sesi Anda. Stok truk tidak diubah.',
+    },
+    'customer': {
+        'flow': '6',
+        'status': 'AT_CUSTOMER',
+        'partner_field': 'customer',
+        'name': 'Customer',
+        'event': 'HILANG / SELISIH UNLOADING CUSTOMER',
+        'empty': 'Belum ada part yang mulai diterima dari customer pada sesi Anda. Stok truk tidak diubah.',
     },
 }
 
@@ -1159,11 +1179,25 @@ def latest_log_ids(session, ids):
     return dict(session.query(LogScan.ID_Sarana, func.max(LogScan.id)).filter(
         LogScan.ID_Sarana.in_(ids)).group_by(LogScan.ID_Sarana).all())
 
+def unloading_partner_value(unit, partner_field):
+    return (
+        unit.Customer
+        if partner_field == 'customer'
+        else unit.Vendor
+    )
+
 def begin_unloading_group(session, unit, actor, kind):
     config = UNLOADING_KINDS[kind]
-    vendor, part = unit.Vendor or '-', unit.Nama_Sarana or ''
+    partner_field = config['partner_field']
+    partner_value = unloading_partner_value(unit, partner_field)
+    partner = partner_value or '-'
+    part = unit.Nama_Sarana or ''
     groups = session.query(UnloadingGroup).filter_by(
-        state='open', kind=kind, vendor=vendor, part=part).all()
+        state='open',
+        kind=kind,
+        part=part,
+        **{partner_field: partner},
+    ).all()
     require(not any(g.actor != actor for g in groups),
             f"Unloading {config['name']} dan part ini sedang ditangani operator lain. Selesaikan sesi operator itu dahulu.", 409)
     if groups:
@@ -1173,25 +1207,33 @@ def begin_unloading_group(session, unit, actor, kind):
         require(unit.ID_Sarana in frozen or unit.Status_Saat_Ini == 'LOST_IN_TRANSIT',
                 f"Unit berasal dari pengiriman berikutnya. Selesaikan unloading {config['name']} part ini dahulu.", 409)
         return
+    unit_partner_field = (
+        'Customer'
+        if partner_field == 'customer'
+        else 'Vendor'
+    )
     units = session.query(Sarana).filter_by(
-        Vendor=unit.Vendor,
         Nama_Sarana=unit.Nama_Sarana,
         Status_Saat_Ini=config['status'],
+        **{unit_partner_field: partner_value},
     ).all()
     ids = [u.ID_Sarana for u in units]
     markers = latest_log_ids(session, ids)
     frozen = {id_:markers.get(id_,0) for id_ in ids}
+    group_values = {'vendor': '', 'customer': ''}
+    group_values[partner_field] = partner
     session.add(UnloadingGroup(
         kind=kind,
         actor=actor,
-        vendor=vendor,
         part=part,
         snapshot=json.dumps(frozen),
         state='open',
+        **group_values,
     ))
 
 def unloading_preview(session, actor, kind):
     config = UNLOADING_KINDS[kind]
+    partner_field = config['partner_field']
     groups = session.query(UnloadingGroup).filter_by(
         actor=actor, state='open', kind=kind).order_by(UnloadingGroup.id).all()
     result = []
@@ -1199,14 +1241,20 @@ def unloading_preview(session, actor, kind):
         frozen = json.loads(group.snapshot)
         units = session.query(Sarana).filter(Sarana.ID_Sarana.in_(list(frozen))).all() if frozen else []
         latest = latest_log_ids(session, list(frozen))
-        remaining = sorted(u.ID_Sarana for u in units
-                           if u.Status_Saat_Ini == config['status']
-                           and (u.Vendor or '-') == group.vendor and (u.Nama_Sarana or '') == group.part
-                           and latest.get(u.ID_Sarana,0) == frozen[u.ID_Sarana])
+        group_partner = getattr(group, partner_field) or '-'
+        remaining = sorted(
+            u.ID_Sarana for u in units
+            if u.Status_Saat_Ini == config['status']
+            and (u.Nama_Sarana or '') == group.part
+            and (unloading_partner_value(u, partner_field) or '-') == group_partner
+            and latest.get(u.ID_Sarana,0) == frozen[u.ID_Sarana]
+        )
         result.append({
             'id': group.id,
             'kind': group.kind,
-            'vendor': group.vendor,
+            'vendor': group.vendor or '',
+            'customer': group.customer or '',
+            'partner': group_partner,
             'part': group.part,
             'missing_ids': remaining,
         })
@@ -1230,7 +1278,7 @@ def preview_unloading(request:Request, kind:str='vendor'):
                 session,
                 request,
                 config['flow'],
-                group['vendor'],
+                group['partner'],
             )
     return {
         'kind': kind,
@@ -1261,7 +1309,7 @@ def finish_unloading(request, kind, preview_token):
                 session,
                 request,
                 config['flow'],
-                group.vendor,
+                getattr(group, config['partner_field']) or '',
             )
         require(hmac.compare_digest(preview_token,token), 'Data berubah sejak pratinjau. Buka Selesai Unloading lagi.',409)
         if not groups:
@@ -1291,6 +1339,10 @@ def finish_vendor_unloading(request:Request, preview_token:str=Form(...)):
 @app.post('/api/finish-api-unloading')
 def finish_api_unloading(request:Request, preview_token:str=Form(...)):
     return finish_unloading(request, 'api', preview_token)
+
+@app.post('/api/finish-customer-unloading')
+def finish_customer_unloading(request:Request, preview_token:str=Form(...)):
+    return finish_unloading(request, 'customer', preview_token)
 
 @app.post('/api/sheets/drain')
 def drain_sheets():
