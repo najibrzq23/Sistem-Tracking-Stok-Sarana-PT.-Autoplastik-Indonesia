@@ -8,7 +8,7 @@ import secrets
 import time
 import logging
 import hmac
-from database import (VendorRecord, DeletedVendor, CustomerRecord, LOCAL_TRIAL,)
+from database import (VendorRecord, DeletedVendor, CustomerRecord,)
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, Form, Request, BackgroundTasks, HTTPException
 from fastapi.responses import HTMLResponse, JSONResponse
@@ -853,12 +853,6 @@ def add_batch(
         'Jumlah 1–100 dan nama wajib diisi.',
     )
 
-    require(
-        configured() or LOCAL_TRIAL,
-        'Integrasi Sheets belum dikonfigurasi.',
-        503,
-    )
-
     items = []
 
     with SessionLocal() as session:
@@ -966,12 +960,6 @@ def scan(
     }
 
     require(alur in targets, 'Alur tidak valid.')
-
-    require(
-        configured() or LOCAL_TRIAL,
-        'Integrasi Sheets belum dikonfigurasi.',
-        503,
-    )
 
     previous, target, label = targets[alur]
 
@@ -1132,11 +1120,6 @@ def sarana_options():
 @app.post('/api/admin/sarana/delete-ng')
 def delete_ng(request:Request,background_tasks:BackgroundTasks,id_sarana:str=Form(...),alasan:str=Form(...)):
     reason=alasan.strip();require(0<len(reason)<=300,'Alasan wajib diisi, maksimal 300 karakter.')
-    require(
-        configured() or LOCAL_TRIAL,
-        'Integrasi Sheets belum dikonfigurasi.',
-        503,
-    )
     with SessionLocal() as session:
         lock_writes(session)
         unit=session.get(Sarana,id_sarana.strip());require(unit is not None,'ID tidak ditemukan.',404)
@@ -1296,11 +1279,6 @@ def preview_unloading(request:Request, kind:str='vendor'):
 
 def finish_unloading(request, kind, preview_token):
     config = UNLOADING_KINDS[kind]
-    require(
-        configured() or LOCAL_TRIAL,
-        'Integrasi Sheets belum dikonfigurasi.',
-        503,
-    )
     with SessionLocal() as session:
         lock_writes(session)
         require_scan_access(session, request, config['flow'])
@@ -1359,6 +1337,12 @@ def drain_sheets():
 
 @app.post('/api/sync')
 def sync():
+    require(
+        os.getenv('ALLOW_SHEETS_IMPORT', '0') == '1',
+        'Impor penuh dari Sheets dinonaktifkan. '
+        'Gunakan script migrasi CSV untuk Supabase.',
+        403,
+    )
     try:
         message=import_data()
     except Exception as error:

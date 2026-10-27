@@ -1082,7 +1082,7 @@
                             <button onclick="openVendorList()" class="btn btn-outline">+ Vendor</button>
                             <button onclick="openCustomerList()" class="btn btn-outline">+ Customer</button>
                             <a id="sheet_link" hidden href="#" target="_blank" rel="noopener noreferrer" class="btn btn-outline">
-                                Buka Google Sheets ↗
+                                Buka Google Sheets (arsip) ↗
                             </a>
                             <button onclick="openDeleteNgModal()" class="btn btn-danger-outline">Hapus stok (NG)</button>
                             <button id="master_refresh_btn" onclick="refreshMasterData()" class="btn btn-ghost ml-auto">
@@ -1428,13 +1428,13 @@
                 const res = await fetch('/api/sync/status');
                 if (!res.ok) return false;
                 syncState = await res.json();
-                const showSyncWarning = !syncState.configured || syncState.pending > 0;
+                const showSyncWarning = syncState.configured && syncState.pending > 0;
                 document.getElementById('sync_banner').classList.toggle('hidden', !showSyncWarning);
-                document.getElementById('sync_text').textContent = !syncState.configured
-                    ? 'Koneksi Sheets belum dikonfigurasi.'
-                    : syncState.pending
+                document.getElementById('sync_text').textContent = syncState.configured
+                    ? (syncState.pending
                         ? `Salinan Sheets: ${syncState.pending} pengiriman belum selesai (${syncState.state}). ${syncState.message}`
-                        : 'Salinan perubahan ke Sheets: seluruh pengiriman terkonfirmasi.';
+                        : 'Salinan perubahan ke Sheets: seluruh pengiriman terkonfirmasi.')
+                    : '';
                 document.getElementById('sync_review').classList.toggle('hidden', !syncState.reviewable);
                 return true;
             } catch (error) {
@@ -1574,8 +1574,9 @@
 
         let syncDrainTimer = null;
         let drainBusy = false;
+        let sheetsEnabled = false;
         async function drainSheets() {
-            if (drainBusy || !currentUser || currentUser.role === 'guest') return;
+            if (!sheetsEnabled || drainBusy || !currentUser || currentUser.role === 'guest') return;
 
             drainBusy = true;
             let needsStatusRefresh = false;
@@ -1612,10 +1613,11 @@
             if (syncDrainTimer) clearInterval(syncDrainTimer);
             try {
                 const cfg = await (await fetch('/api/config')).json();
+                sheetsEnabled = !!cfg.sheets_enabled;
                 const link = document.getElementById('sheet_link');
                 link.hidden = !cfg.google_sheet_url;
                 if (cfg.google_sheet_url) link.href = cfg.google_sheet_url;
-                if (cfg.sheets_enabled && user.role !== 'guest') {
+                if (sheetsEnabled && user.role !== 'guest') {
                     syncDrainTimer = setInterval(drainSheets, 3000);
                     void drainSheets();
                 }
@@ -2275,15 +2277,13 @@
             if (button.disabled) return;
 
             button.disabled = true;
-            button.textContent = 'Memperbarui…';
+            button.textContent = 'Memuat ulang...';
 
             try {
-                const result = await trackingRequest('/api/sync', {method: 'POST'});
                 await loadAdminMaster();
-                await loadSyncStatus();
                 await Swal.fire({
                     toast: true, position: 'top', icon: 'success',
-                    title: 'Master data diperbarui', text: result.message,
+                    title: 'Master data dimuat ulang', text: 'Data diambil dari database.',
                     timer: 1200, showConfirmButton: false, customClass: {popup: 'app-swal'}
                 });
             } catch (error) {

@@ -23,10 +23,18 @@ from database import (
 
 APPS_SCRIPT_URL = os.getenv("APPS_SCRIPT_URL", "").strip()
 SYNC_API_KEY = os.getenv("SYNC_API_KEY", "").strip()
+SHEETS_MODE = os.getenv("SHEETS_MODE", "off").strip().lower()
+
+if SHEETS_MODE not in ("off", "mirror"):
+    SHEETS_MODE = "off"
 
 
 def configured():
-    return bool(APPS_SCRIPT_URL and SYNC_API_KEY)
+    """Sheets hanya aktif sebagai salinan opsional, bukan sumber data utama."""
+    return (
+        SHEETS_MODE == "mirror"
+        and bool(APPS_SCRIPT_URL and SYNC_API_KEY)
+    )
 
 
 def safe_message(value):
@@ -43,13 +51,10 @@ def safe_message(value):
 
 
 def enqueue(session, payload):
-    if LOCAL_TRIAL:
+    # Supabase adalah sumber data utama. Salinan Sheets bersifat opsional;
+    # bila mode mati atau kredensial belum diisi, transaksi tetap tersimpan.
+    if LOCAL_TRIAL or not configured():
         return
-
-    if not configured():
-        raise RuntimeError(
-            'Integrasi Sheets belum dikonfigurasi.'
-        )
 
     payload = dict(payload)
     payload['schema'] = 'tracking_v3'
@@ -68,7 +73,7 @@ def flush_one():
     if not configured():
         return {
             'status': 'not_configured',
-            'message': 'Integrasi Sheets belum dikonfigurasi.',
+            'message': 'Salinan Sheets tidak aktif (SHEETS_MODE=off atau kredensial belum diisi).',
         }
 
     with SessionLocal() as session:
@@ -336,7 +341,7 @@ def _restart_log_sequence(session):
 def import_data():
     if not configured():
         raise ValueError(
-            'Integrasi Sheets belum dikonfigurasi.'
+            'Salinan Sheets tidak aktif. Set SHEETS_MODE=mirror dan lengkapi kredensial bila impor dari Sheets memang diperlukan.'
         )
 
     with SessionLocal() as session:
