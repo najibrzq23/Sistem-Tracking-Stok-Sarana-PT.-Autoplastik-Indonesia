@@ -8,6 +8,7 @@ import uuid
 from zoneinfo import ZoneInfo
 
 import requests
+from sqlalchemy import text
 
 from database import (
     SessionLocal,
@@ -257,6 +258,81 @@ def _sync_revision(session):
     return hashlib.sha256(content.encode()).hexdigest()
 
 
+LOG_ID_KEYS = ('Log_ID', 'LogId', 'Log ID', 'log_id')
+
+
+def _sheet_log_id(row):
+    for key in LOG_ID_KEYS:
+        if key in row:
+            return row.get(key)
+    return None
+
+
+def _parse_log_id(value):
+    if value is None or value == '':
+        return None
+
+    text_value = str(value).strip()
+
+    if not re.fullmatch(r'\d+(?:\.0+)?', text_value):
+        return None
+
+    number = int(text_value.split('.', 1)[0])
+    return number if number > 0 else None
+
+
+def _assign_log_ids(rows, raw_ids):
+    if raw_ids and all(value is not None for value in raw_ids):
+        if len(set(raw_ids)) != len(raw_ids):
+            raise ValueError(
+                'Log_ID duplikat pada snapshot Sheets.'
+            )
+
+        for row, log_id in zip(rows, raw_ids):
+            row['id'] = log_id
+
+        return rows
+
+    # Snapshot lama mungkin belum mengirim Log_ID. Nomor tetap
+    # dimulai dari 1 agar cocok dengan urutan baris spreadsheet.
+    for index, row in enumerate(rows, start=1):
+        row['id'] = index
+
+    return rows
+
+
+def _restart_log_sequence(session):
+    dialect = session.get_bind().dialect.name
+
+    if dialect == 'postgresql':
+        max_id = session.execute(text(
+            'SELECT COALESCE(MAX(id), 1) FROM log_scan'
+        )).scalar()
+        has_rows = session.execute(text(
+            'SELECT COUNT(*) FROM log_scan'
+        )).scalar() > 0
+        session.execute(
+            text(
+                "SELECT setval("
+                "pg_get_serial_sequence('log_scan', 'id'), "
+                ":value, :called)"
+            ),
+            {'value': max_id, 'called': has_rows},
+        )
+    elif dialect == 'sqlite':
+        has_sequence = session.execute(text(
+            "SELECT 1 FROM sqlite_master "
+            "WHERE type='table' AND name='sqlite_sequence'"
+        )).scalar()
+
+        if has_sequence:
+            session.execute(text(
+                "UPDATE sqlite_sequence "
+                "SET seq = COALESCE((SELECT MAX(id) FROM log_scan), 0) "
+                "WHERE name='log_scan'"
+            ))
+
+
 def import_data():
     if not configured():
         raise ValueError(
@@ -338,6 +414,7 @@ def import_data():
 
     parsed = []
     parsed_logs = []
+    raw_log_ids = []
     seen = set()
     events = set()
 
@@ -474,6 +551,7 @@ def import_data():
             )
 
         events.add(event_id)
+        raw_log_ids.append(_parse_log_id(_sheet_log_id(row)))
 
         parsed_logs.append({
             'ID_Sarana': id_sarana,
@@ -484,6 +562,8 @@ def import_data():
             'Customer': '',
             'Waktu_Scan': scan_time,
         })
+
+    _assign_log_ids(parsed_logs, raw_log_ids)
 
     with SessionLocal() as session:
         lock_writes(session)
@@ -532,6 +612,8 @@ def import_data():
             for row in parsed_logs
         ])
 
+        session.flush()
+        _restart_log_sequence(session)
         session.commit()
 
     return (

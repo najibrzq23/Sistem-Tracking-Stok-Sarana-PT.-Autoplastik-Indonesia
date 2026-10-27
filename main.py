@@ -57,7 +57,7 @@ async def access_control(request: Request, call_next):
             admin_paths = ['/api/admin/users','/api/admin/sarana/','/api/sync']
             if any(path.startswith(p) for p in admin_paths) and user.role != 'admin':
                 return JSONResponse({'message':'Akses khusus admin.'}, status_code=403)
-            if path in ['/api/scan','/api/finish-vendor-unloading','/api/unloading/preview','/api/sheets/drain'] and user.role not in ['admin','member']:
+            if path in ['/api/scan','/api/finish-vendor-unloading','/api/finish-api-unloading','/api/unloading/preview','/api/sheets/drain'] and user.role not in ['admin','member']:
                 return JSONResponse({'message':'Akses khusus operator atau admin.'}, status_code=403)
     response = await call_next(request)
     if path.startswith('/api/'):
@@ -1048,11 +1048,17 @@ def scan(
                 409,
             )
 
-        if alur == '2':
+        unloading_kind = {
+            '2': 'vendor',
+            '4': 'api',
+        }.get(alur)
+
+        if unloading_kind:
             begin_unloading_group(
                 session,
                 unit,
                 request.state.actor,
+                unloading_kind,
             )
 
         unit.Status_Saat_Ini = target
@@ -1130,71 +1136,111 @@ def delete_ng(request:Request,background_tasks:BackgroundTasks,id_sarana:str=For
         session.commit()
     return {'status':'success','message':'Unit NG dihapus dari stok aktif dan dicatat di log.'}
 
+UNLOADING_KINDS = {
+    'vendor': {
+        'flow': '2',
+        'status': 'IN_TRANSIT_OUT',
+        'name': 'Vendor',
+        'event': 'HILANG / SELISIH UNLOADING VENDOR',
+        'empty': 'Belum ada part yang mulai diterima pada sesi Anda. Stok truk tidak diubah.',
+    },
+    'api': {
+        'flow': '4',
+        'status': 'IN_TRANSIT_IN',
+        'name': 'API',
+        'event': 'HILANG / SELISIH UNLOADING API',
+        'empty': 'Belum ada part yang mulai diterima di PT API pada sesi Anda. Stok truk tidak diubah.',
+    },
+}
+
 def latest_log_ids(session, ids):
     if not ids:
         return {}
     return dict(session.query(LogScan.ID_Sarana, func.max(LogScan.id)).filter(
         LogScan.ID_Sarana.in_(ids)).group_by(LogScan.ID_Sarana).all())
 
-def begin_unloading_group(session, unit, actor):
+def begin_unloading_group(session, unit, actor, kind):
+    config = UNLOADING_KINDS[kind]
     vendor, part = unit.Vendor or '-', unit.Nama_Sarana or ''
-    groups = session.query(UnloadingGroup).filter_by(state='open', vendor=vendor, part=part).all()
+    groups = session.query(UnloadingGroup).filter_by(
+        state='open', kind=kind, vendor=vendor, part=part).all()
     require(not any(g.actor != actor for g in groups),
-            'Unloading vendor dan part ini sedang ditangani operator lain. Selesaikan sesi operator itu dahulu.', 409)
+            f"Unloading {config['name']} dan part ini sedang ditangani operator lain. Selesaikan sesi operator itu dahulu.", 409)
     if groups:
         group = groups[0]
         frozen = json.loads(group.snapshot)
         # Unit recovery boleh diterima, tetapi tidak mengaktifkan kandidat dari pengiriman baru.
         require(unit.ID_Sarana in frozen or unit.Status_Saat_Ini == 'LOST_IN_TRANSIT',
-                'Unit berasal dari pengiriman berikutnya. Selesaikan unloading part ini dahulu.', 409)
+                f"Unit berasal dari pengiriman berikutnya. Selesaikan unloading {config['name']} part ini dahulu.", 409)
         return
-    units = session.query(Sarana).filter_by(Vendor=unit.Vendor, Nama_Sarana=unit.Nama_Sarana,
-                                           Status_Saat_Ini='IN_TRANSIT_OUT').all()
+    units = session.query(Sarana).filter_by(
+        Vendor=unit.Vendor,
+        Nama_Sarana=unit.Nama_Sarana,
+        Status_Saat_Ini=config['status'],
+    ).all()
     ids = [u.ID_Sarana for u in units]
     markers = latest_log_ids(session, ids)
     frozen = {id_:markers.get(id_,0) for id_ in ids}
-    session.add(UnloadingGroup(actor=actor, vendor=vendor, part=part,
-                               snapshot=json.dumps(frozen), state='open'))
+    session.add(UnloadingGroup(
+        kind=kind,
+        actor=actor,
+        vendor=vendor,
+        part=part,
+        snapshot=json.dumps(frozen),
+        state='open',
+    ))
 
-def unloading_preview(session, actor):
-    groups = session.query(UnloadingGroup).filter_by(actor=actor,state='open').order_by(UnloadingGroup.id).all()
+def unloading_preview(session, actor, kind):
+    config = UNLOADING_KINDS[kind]
+    groups = session.query(UnloadingGroup).filter_by(
+        actor=actor, state='open', kind=kind).order_by(UnloadingGroup.id).all()
     result = []
     for group in groups:
         frozen = json.loads(group.snapshot)
         units = session.query(Sarana).filter(Sarana.ID_Sarana.in_(list(frozen))).all() if frozen else []
         latest = latest_log_ids(session, list(frozen))
         remaining = sorted(u.ID_Sarana for u in units
-                           if u.Status_Saat_Ini == 'IN_TRANSIT_OUT'
+                           if u.Status_Saat_Ini == config['status']
                            and (u.Vendor or '-') == group.vendor and (u.Nama_Sarana or '') == group.part
                            and latest.get(u.ID_Sarana,0) == frozen[u.ID_Sarana])
-        result.append({'id':group.id, 'vendor':group.vendor, 'part':group.part, 'missing_ids':remaining})
+        result.append({
+            'id': group.id,
+            'kind': group.kind,
+            'vendor': group.vendor,
+            'part': group.part,
+            'missing_ids': remaining,
+        })
     serialized = json.dumps(result, sort_keys=True, separators=(',',':'))
     token = hmac.new(secret.encode(), serialized.encode(), hashlib.sha256).hexdigest()
     return groups, result, token
 
 @app.get('/api/unloading/preview')
-def preview_unloading(request:Request):
+def preview_unloading(request:Request, kind:str='vendor'):
+    require(kind in UNLOADING_KINDS, 'Jenis unloading tidak valid.')
+    config = UNLOADING_KINDS[kind]
     with SessionLocal() as session:
-        require_scan_access(session, request, '2')
+        require_scan_access(session, request, config['flow'])
         _, details, token = unloading_preview(
             session,
             request.state.actor,
+            kind,
         )
         for group in details:
             require_scan_access(
                 session,
                 request,
-                '2',
+                config['flow'],
                 group['vendor'],
             )
     return {
+        'kind': kind,
         'groups': details,
         'token': token,
         'missing_count': sum(len(g['missing_ids']) for g in details),
     }
 
-@app.post('/api/finish-vendor-unloading')
-def finish_unloading(request:Request, preview_token:str=Form(...)):
+def finish_unloading(request, kind, preview_token):
+    config = UNLOADING_KINDS[kind]
     require(
         configured() or LOCAL_TRIAL,
         'Integrasi Sheets belum dikonfigurasi.',
@@ -1202,39 +1248,49 @@ def finish_unloading(request:Request, preview_token:str=Form(...)):
     )
     with SessionLocal() as session:
         lock_writes(session)
-        require_scan_access(session, request, '2')
+        require_scan_access(session, request, config['flow'])
 
         groups, details, token = unloading_preview(
             session,
             request.state.actor,
+            kind,
         )
 
         for group in groups:
             require_scan_access(
                 session,
                 request,
-                '2',
+                config['flow'],
                 group.vendor,
             )
         require(hmac.compare_digest(preview_token,token), 'Data berubah sejak pratinjau. Buka Selesai Unloading lagi.',409)
         if not groups:
-            return {'status':'info','message':'Belum ada part yang mulai diterima pada sesi Anda. Stok truk tidak diubah.'}
+            return {'status':'info','message':config['empty']}
         missing = sorted({id_ for g in details for id_ in g['missing_ids']})
         for id_ in missing:
             unit = session.get(Sarana,id_)
+            require(unit is not None, 'Unit tidak ditemukan. Muat ulang data dan periksa stok.', 409)
             unit.Status_Saat_Ini = 'LOST_IN_TRANSIT'
             record_status_change(
                 session,
                 unit,
-                'HILANG / SELISIH UNLOADING',
+                config['event'],
                 request.state.actor,
-                previous='IN_TRANSIT_OUT',
+                previous=config['status'],
             )
         for group in groups:
             group.state = 'closed'; group.closed_at = now()
         session.commit()
     return {'status':'warning' if missing else 'success', 'missing_ids':missing,
-            'message':f'Unloading selesai. {len(missing)} unit ditandai hilang/selisih.' if missing else 'Unloading selesai. Part yang mulai diterima sudah lengkap.'}
+            'message':f"Unloading {config['name']} selesai. {len(missing)} unit ditandai hilang/selisih." if missing else f"Unloading {config['name']} selesai. Part yang mulai diterima sudah lengkap."}
+
+@app.post('/api/finish-vendor-unloading')
+def finish_vendor_unloading(request:Request, preview_token:str=Form(...)):
+    return finish_unloading(request, 'vendor', preview_token)
+
+@app.post('/api/finish-api-unloading')
+def finish_api_unloading(request:Request, preview_token:str=Form(...)):
+    return finish_unloading(request, 'api', preview_token)
 
 @app.post('/api/sheets/drain')
 def drain_sheets():

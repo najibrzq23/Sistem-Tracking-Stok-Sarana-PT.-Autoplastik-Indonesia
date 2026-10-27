@@ -103,6 +103,7 @@ class User(Base):
 class UnloadingGroup(Base):
     __tablename__ = 'unloading_groups'
     id = Column(Integer, primary_key=True, autoincrement=True)
+    kind = Column(String(10), default='vendor', nullable=False, index=True)
     actor = Column(String, nullable=False, index=True)
     vendor = Column(String, nullable=False)
     part = Column(String, nullable=False)
@@ -169,6 +170,9 @@ def migrate_tracking_v2(connection):
         'users': {
             'scan_permissions': "TEXT NOT NULL DEFAULT '[]'",
             'vendor_scope': "VARCHAR(100) NOT NULL DEFAULT ''",
+        },
+        'unloading_groups': {
+            'kind': "VARCHAR(10) NOT NULL DEFAULT 'vendor'",
         },
     }
 

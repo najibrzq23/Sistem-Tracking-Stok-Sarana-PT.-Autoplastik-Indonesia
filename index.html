@@ -1048,7 +1048,8 @@
                             </div>
 
                             <button id="station_submit_btn" onclick="submitCurrentStation()" class="btn btn-primary btn-block scan-submit-btn">Kirim ID Manual</button>
-                            <button id="btn_finish_unloading" onclick="finishVendorUnloading()" class="btn btn-warning btn-block hidden">Selesai Unloading Vendor</button>
+                            <button id="btn_finish_vendor_unloading" onclick="finishVendorUnloading()" class="btn btn-warning btn-block hidden">Selesai Unloading Vendor</button>
+                            <button id="btn_finish_api_unloading" onclick="finishApiUnloading()" class="btn btn-success btn-block hidden">Selesai Unloading API</button>
                         </div>
 
                         <div class="mt-auto pt-4">
@@ -1507,11 +1508,11 @@
             },
             'api_in': {
                 badge: 'TRUK BALIK → PT API', badgeTone: 'success', group: 'pt_vendor', direction: 'in',
-                title: 'Inbound Penerimaan PT API', desc: 'Part sarana kembali dari vendor ke PT API.', alur: '4', showUnloadingBtn: true
+                title: 'Inbound Penerimaan PT API', desc: 'Part sarana kembali dari vendor ke PT API.', alur: '4', showApiUnloadingBtn: true
             },
             'vendor_in': {
                 badge: 'TRUK → L2 VENDOR', badgeTone: 'info', group: 'vendor', direction: 'in',
-                title: 'Inbound Unloading Vendor', desc: 'Part sarana diterima dan di-unloading di L2 Vendor.', alur: '2', showUnloadingBtn: true
+                title: 'Inbound Unloading Vendor', desc: 'Part sarana diterima dan di-unloading di L2 Vendor.', alur: '2', showVendorUnloadingBtn: true
             },
             'vendor_out': {
                 badge: 'L2 VENDOR → TRUK BALIK', badgeTone: 'warning', group: 'vendor', direction: 'out',
@@ -1826,7 +1827,8 @@
             const submit = document.getElementById('station_submit_btn');
             submit.className = 'btn btn-primary btn-block scan-submit-btn';
             submit.textContent = 'Kirim ID Manual';
-            document.getElementById('btn_finish_unloading').classList.toggle('hidden', !cfg.showUnloadingBtn);
+            document.getElementById('btn_finish_vendor_unloading').classList.toggle('hidden', !cfg.showVendorUnloadingBtn);
+            document.getElementById('btn_finish_api_unloading').classList.toggle('hidden', !cfg.showApiUnloadingBtn);
             document.getElementById('station_vendor_box').classList.toggle('hidden', cfg.alur !== '1');
             document.getElementById('station_customer_box').classList.toggle('hidden', cfg.alur !== '5');
         }
@@ -2832,15 +2834,41 @@
         }
 
         let finishBusy = false;
+        const unloadingUi = {
+            vendor: {
+                previewUrl: '/api/unloading/preview?kind=vendor',
+                finishUrl: '/api/finish-vendor-unloading',
+                title: 'Selesai Unloading Vendor?',
+                successTitle: 'Unloading Vendor Selesai',
+                empty: 'Belum ada part yang mulai diterima pada sesi Anda. Stok truk tidak diubah.'
+            },
+            api: {
+                previewUrl: '/api/unloading/preview?kind=api',
+                finishUrl: '/api/finish-api-unloading',
+                title: 'Selesai Unloading API?',
+                successTitle: 'Unloading API Selesai',
+                empty: 'Belum ada part yang mulai diterima di PT API pada sesi Anda. Stok truk tidak diubah.'
+            }
+        };
+
         async function finishVendorUnloading() {
-            if (finishBusy || scanRequestBusy) return;
+            return finishUnloading('vendor');
+        }
+
+        async function finishApiUnloading() {
+            return finishUnloading('api');
+        }
+
+        async function finishUnloading(kind) {
+            const config = unloadingUi[kind];
+            if (!config || finishBusy || scanRequestBusy) return;
             finishBusy = true;
             try {
-                const response = await fetch('/api/unloading/preview');
+                const response = await fetch(config.previewUrl);
                 const preview = await response.json();
                 if (!response.ok) throw new Error(preview.message || 'Pratinjau gagal.');
                 if (!preview.groups.length) {
-                    await Swal.fire({icon: 'info', text: 'Belum ada part yang mulai diterima pada sesi Anda. Stok truk tidak diubah.', customClass: {popup: 'app-swal'}});
+                    await Swal.fire({icon: 'info', text: config.empty, customClass: {popup: 'app-swal'}});
                     return;
                 }
                 const rows = preview.groups.map(g => `
@@ -2848,8 +2876,8 @@
                     <p style="margin:0 0 8px;font-size:12px;overflow-wrap:anywhere;color:#5B6B8A">${g.missing_ids.map(safeText).join(', ') || 'Lengkap'}</p>
                 `).join('<hr style="border:0;border-top:1px solid #D9E6FA;margin:8px 0">');
                 const confirm = await Swal.fire({
-                    title: 'Selesai Unloading Vendor?',
-                    html: `<div style="max-height:300px;overflow:auto;text-align:left">${rows}</div><p style="text-align:left">${preview.missing_count} unit akan ditandai hilang/selisih. Part yang belum mulai diterima tetap di truk.</p>`,
+                    title: config.title,
+                    html: `<div style="max-height:300px;overflow:auto;text-align:left">${rows}</div><p style="text-align:left">${preview.missing_count} unit akan ditandai hilang/selisih. Pastikan semua part sudah dipindai sebelum menyimpan.</p>`,
                     icon: 'question',
                     showCancelButton: true,
                     confirmButtonText: 'Simpan Hasil Unloading',
@@ -2859,11 +2887,11 @@
                 if (!confirm.isConfirmed) return;
                 const form = new FormData();
                 form.append('preview_token', preview.token);
-                const res = await fetch('/api/finish-vendor-unloading', {method: 'POST', body: form});
+                const res = await fetch(config.finishUrl, {method: 'POST', body: form});
                 const result = await res.json();
                 await Swal.fire({
                     icon: res.ok ? (result.status === 'warning' ? 'warning' : 'success') : 'error',
-                    title: res.ok ? 'Unloading Selesai' : 'Belum Disimpan',
+                    title: res.ok ? config.successTitle : 'Belum Disimpan',
                     text: result.message,
                     customClass: {popup: 'app-swal'}
                 });
