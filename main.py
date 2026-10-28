@@ -1192,6 +1192,7 @@ def sarana_options():
             session.query(
                 Sarana.ID_Sarana,
                 Sarana.Nama_Sarana,
+                Sarana.No_Sarana,
                 Sarana.Status_Saat_Ini,
             )
             .filter(or_(
@@ -1207,6 +1208,7 @@ def sarana_options():
             {
                 'ID_Sarana': row.ID_Sarana,
                 'Nama_Sarana': escaped(row.Nama_Sarana),
+                'No_Sarana': escaped(row.No_Sarana),
                 'Status_Saat_Ini': escaped(row.Status_Saat_Ini),
             }
             for row in rows

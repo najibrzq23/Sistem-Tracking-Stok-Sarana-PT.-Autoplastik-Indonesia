@@ -1027,7 +1027,7 @@
                 </div>
                 <button type="submit" class="btn btn-primary btn-block" style="min-height:50px;">Masuk Akun</button>
             </form>
-            <p class="text-center text-[11px] text-[#5B6B8A]">Sistem Pelacakan Stok Sarana</p>
+            <p class="text-center text-[11px] text-[#5B6B8A]">Kontak Admin Jika Ada Kendala: 08xxxxxxxxxx</p>
         </div>
     </div>
 
@@ -2245,7 +2245,8 @@
                 if (menuKey === 'database') loadAdminMaster();
                 else if (menuKey === 'users') loadAdminUsers();
                 else {
-                    loadMasterToQRSelect();
+                    await loadMasterToQRSelect();
+                    if (generation !== stationGeneration) return;
                     generateBatchQRCodeA4();
                 }
             } else if (menuKey === 'account') {
@@ -2937,25 +2938,34 @@
 
         let masterSaranaList = [];
         async function loadMasterToQRSelect() {
+            const qrSelect = document.getElementById('qr_select_part');
+            const previousSelection = qrSelect.value;
+            qrSelect.disabled = true;
+            qrSelect.replaceChildren(new Option('-- Memuat Jenis Part / Sarana --', ''));
+
             try {
-                const res = await fetch('/api/admin/database');
-                const data = await res.json();
-                masterSaranaList = (data.master || []).filter(m => !m.Status_Saat_Ini.startsWith('DELETED'));
+                const data = await trackingRequest('/api/admin/sarana/options');
+                masterSaranaList = Array.isArray(data.units) ? data.units : [];
+                qrSelect.replaceChildren(new Option('-- Pilih Jenis Part / Sarana --', ''));
 
-                const qrSelect = document.getElementById('qr_select_part');
-                qrSelect.innerHTML = `<option value="">-- Pilih Jenis Part / Sarana --</option>`;
-
-                const uniqueParts = [...new Set(masterSaranaList.map(item => item.Nama_Sarana))].filter(Boolean);
+                const uniqueParts = [...new Set(masterSaranaList.map(item => item.Nama_Sarana).filter(Boolean))]
+                    .sort((a, b) => a.localeCompare(b, 'id', {sensitivity: 'base'}));
                 uniqueParts.forEach(partName => {
                     const count = masterSaranaList.filter(m => m.Nama_Sarana === partName).length;
-                    const option = document.createElement('option');
-                    option.value = partName;
-                    option.innerHTML = `${safeText(partName)} (${count} Unit)`;
-                    qrSelect.appendChild(option);
+                    qrSelect.appendChild(new Option(`${partName} (${count} Unit)`, partName));
                 });
+
+                if (uniqueParts.includes(previousSelection)) qrSelect.value = previousSelection;
                 updateQRSummary();
+                return true;
             } catch (e) {
                 console.error('Error load master QR select:', e);
+                masterSaranaList = [];
+                qrSelect.replaceChildren(new Option('-- Gagal memuat jenis part --', ''));
+                document.getElementById('qr_summary').textContent = 'Data jenis part gagal dimuat. Buka kembali menu Cetak QR untuk mencoba lagi.';
+                return false;
+            } finally {
+                qrSelect.disabled = false;
             }
         }
 
