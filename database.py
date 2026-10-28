@@ -9,7 +9,7 @@ import secrets
 from pathlib import Path
 from zoneinfo import ZoneInfo
 from dotenv import load_dotenv
-from sqlalchemy import create_engine, Column, Integer, String, DateTime, Text, text
+from sqlalchemy import create_engine, Column, Integer, String, DateTime, Text, func, or_, text
 from sqlalchemy.orm import declarative_base, sessionmaker, Session
 from sqlalchemy.pool import NullPool, QueuePool
 
@@ -216,6 +216,51 @@ class CustomerRecord(Base):
     created_at = Column(DateTime, default=now)
 
 
+def backfill_api_received_at(connection):
+    """Isi API_Received_At lama dari log kedatangan PT API yang tersedia."""
+    with Session(bind=connection) as session:
+        missing_units = (
+            session.query(Sarana.ID_Sarana)
+            .filter(Sarana.API_Received_At.is_(None))
+            .subquery()
+        )
+
+        latest = {
+            unit_id: received_at
+            for unit_id, received_at in (
+                session.query(
+                    LogScan.ID_Sarana,
+                    func.max(LogScan.Waktu_Scan),
+                )
+                .join(
+                    missing_units,
+                    LogScan.ID_Sarana == missing_units.c.ID_Sarana,
+                )
+                .filter(or_(
+                    LogScan.Alur_Scan.startswith('TAMBAH STOK'),
+                    LogScan.Alur_Scan.contains('In Truck → PT API In'),
+                    LogScan.Alur_Scan.contains('Customer → PT API In'),
+                ))
+                .group_by(LogScan.ID_Sarana)
+                .all()
+            )
+            if received_at is not None
+        }
+
+        if not latest:
+            return
+
+        for unit in session.query(Sarana).filter(
+            Sarana.API_Received_At.is_(None)
+        ):
+            received_at = latest.get(unit.ID_Sarana)
+
+            if received_at is not None:
+                unit.API_Received_At = received_at
+
+        session.flush()
+
+
 def migrate_tracking_v2(connection):
     from sqlalchemy import inspect
 
@@ -288,13 +333,9 @@ def migrate_tracking_v2(connection):
                 if label.startswith(scan_prefixes):
                     unit.Last_Scan_At = event.Waktu_Scan
 
-                if unit.Status_Saat_Ini == 'AT_API' and (
-                    label.startswith('TAMBAH STOK')
-                    or 'In Truck → PT API In' in label
-                ):
-                    unit.API_Received_At = event.Waktu_Scan
-
             session.flush()
+
+    backfill_api_received_at(connection)
 
 def init_db():
     # Lock PostgreSQL juga melindungi inisialisasi beberapa cold start sekaligus.

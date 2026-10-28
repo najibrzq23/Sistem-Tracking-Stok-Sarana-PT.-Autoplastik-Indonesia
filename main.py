@@ -984,6 +984,7 @@ def add_batch(
                 'TAMBAH STOK COMMON',
                 request.state.actor,
             )
+            unit.API_Received_At = log.Waktu_Scan
 
             items.append({
                 'ID_Sarana': unit.ID_Sarana,
@@ -1160,9 +1161,11 @@ def scan(
             )
 
         unit.Status_Saat_Ini = target
-        unit.Last_Scan_At = now()
+        scan_time = now()
+        unit.Last_Scan_At = scan_time
 
         if target == 'AT_API':
+            unit.API_Received_At = scan_time
             unit.Vendor = ''
             unit.Customer = ''
 

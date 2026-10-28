@@ -167,6 +167,44 @@
         input[type="date"]::-webkit-calendar-picker-indicator { filter: none; opacity: .55; cursor: pointer; }
         input[type="checkbox"] { accent-color: var(--primary); }
 
+        .password-toggle {
+            display: flex;
+            align-items: center;
+            gap: 9px;
+            margin-top: 8px;
+            color: var(--ink);
+            font-size: 13px;
+            font-weight: 600;
+            line-height: 1.3;
+            cursor: pointer;
+            user-select: none;
+        }
+        .password-toggle input[type="checkbox"] {
+            appearance: none;
+            -webkit-appearance: none;
+            width: 18px;
+            height: 18px;
+            margin: 0;
+            flex: 0 0 auto;
+            border: 2px solid #7C8CA6;
+            border-radius: 4px;
+            background-color: #fff;
+            background-position: center;
+            background-size: 12px 12px;
+            background-repeat: no-repeat;
+            cursor: pointer;
+            transition: background-color .18s ease, border-color .18s ease, box-shadow .18s ease;
+        }
+        .password-toggle input[type="checkbox"]:checked {
+            border-color: var(--primary);
+            background-color: var(--primary);
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='3.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m5 12 5 5L20 7'/%3E%3C/svg%3E");
+        }
+        .password-toggle input[type="checkbox"]:focus-visible {
+            outline: 3px solid rgba(31, 95, 224, .18);
+            outline-offset: 2px;
+        }
+
         .hint { margin: 0; color: var(--muted); font-size: 12px; line-height: 1.65; }
         .text-muted { color: var(--muted) !important; }
         .text-primary { color: var(--primary) !important; }
@@ -838,6 +876,10 @@
                 <div>
                     <label class="field-label" for="login_pass">Password</label>
                     <input type="password" id="login_pass" required class="field" placeholder="••••••••" autocomplete="current-password">
+                    <label class="password-toggle" for="login_show_password">
+                        <input type="checkbox" id="login_show_password" onchange="togglePasswordVisibility('login_pass', this.checked)">
+                        <span>Tampilkan password</span>
+                    </label>
                 </div>
                 <button type="submit" class="btn btn-primary btn-block" style="min-height:50px;">Masuk Akun</button>
             </form>
@@ -1260,6 +1302,10 @@
                                 <div>
                                     <label class="field-label" for="reg_password">Password</label>
                                     <input type="password" id="reg_password" required minlength="8" maxlength="256" class="field" placeholder="Minimal 8 karakter" autocomplete="new-password">
+                                    <label class="password-toggle" for="reg_show_password">
+                                        <input type="checkbox" id="reg_show_password" onchange="togglePasswordVisibility('reg_password', this.checked)">
+                                        <span>Tampilkan password</span>
+                                    </label>
                                 </div>
                                 <div>
                                     <label class="field-label">Izin akses scan</label>
@@ -1672,6 +1718,12 @@
             return String(name || 'A').trim().split(/\s+/).slice(0, 2).map(part => part[0]).join('').toUpperCase() || 'A';
         }
 
+        function togglePasswordVisibility(inputId, visible) {
+            const input = document.getElementById(inputId);
+            if (!input) return;
+            input.type = visible ? 'text' : 'password';
+        }
+
         async function handleLogin(e) {
             e.preventDefault();
             const formData = new FormData();
@@ -1683,6 +1735,8 @@
 
             if (res.ok) {
                 document.getElementById('login_pass').value = '';
+                document.getElementById('login_pass').type = 'password';
+                document.getElementById('login_show_password').checked = false;
                 await enterApp(data.user);
             } else {
                 Swal.fire({icon: 'error', title: 'Login Gagal', text: data.message, customClass: {popup: 'app-swal'}});
@@ -2597,6 +2651,8 @@
                 document.getElementById('reg_jabatan').value = '';
                 document.getElementById('reg_username').value = '';
                 document.getElementById('reg_password').value = '';
+                document.getElementById('reg_password').type = 'password';
+                document.getElementById('reg_show_password').checked = false;
                 await loadAdminUsers();
             } else {
                 Swal.fire({icon: 'error', title: 'Gagal Buat Akun', text: data.message, customClass: {popup: 'app-swal'}});
