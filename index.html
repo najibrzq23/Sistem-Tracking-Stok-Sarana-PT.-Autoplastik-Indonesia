@@ -211,6 +211,25 @@
             outline: 3px solid rgba(31, 95, 224, .18);
             outline-offset: 2px;
         }
+        .reset-password-toggle {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-top: 16px;
+            color: var(--ink);
+            font-size: 14px;
+            font-weight: 600;
+            line-height: 1.4;
+            cursor: pointer;
+            text-align: left;
+        }
+        .reset-password-toggle input[type="checkbox"] {
+            width: 18px;
+            height: 18px;
+            min-height: 18px;
+            margin: 0;
+            flex: 0 0 18px;
+        }
 
         .hint { margin: 0; color: var(--muted); font-size: 12px; line-height: 1.65; }
         .text-muted { color: var(--muted) !important; }
@@ -782,8 +801,15 @@
             main h2 { font-size: 19px !important; line-height: 1.35; overflow-wrap: anywhere; }
             main h3 { line-height: 1.45; }
             main p, main label { line-height: 1.55; }
-            main input, main select, main textarea,
-            [id$="_modal"] input, [id$="_modal"] select, [id$="_modal"] textarea { font-size: 16px !important; min-height: 48px; max-width: 100%; }
+            main input:not([type="checkbox"]), main select, main textarea,
+            [id$="_modal"] input:not([type="checkbox"]), [id$="_modal"] select, [id$="_modal"] textarea { font-size: 16px !important; min-height: 48px; max-width: 100%; }
+            .password-toggle input[type="checkbox"] {
+                width: 18px !important;
+                height: 18px !important;
+                min-width: 18px;
+                min-height: 18px !important;
+                flex-basis: 18px;
+            }
             main button, main a { min-height: 44px; font-size: 14px !important; }
             .btn-sm { min-height: 40px; }
             #station_id_input { width: 100%; }
@@ -1071,7 +1097,7 @@
                 </div>
                 <button type="submit" class="btn btn-primary btn-block" style="min-height:50px;">Masuk Akun</button>
             </form>
-            <p class="text-center text-[11px] text-[#5B6B8A]">Kontak Admin Jika Ada Kendala: 089520352867 (NAJIB)</p>
+            <p class="text-center text-[11px] text-[#5B6B8A]">Kontak Admin Jika Ada Kendala: 089520352867 - (NAJIB)</p>
         </div>
     </div>
 
@@ -1578,7 +1604,7 @@
                             </div>
                             <div class="min-w-0">
                                 <p class="text-[10px] font-black uppercase tracking-[.08em] text-[#5B6B8A]">Contact Person Admin</p>
-                                <p class="mt-1 text-sm font-black text-[#0B1F44]">0895-2035-2867 (NAJIB)</p>
+                                <p class="mt-1 text-sm font-black text-[#0B1F44]">0895-2035-2867 - (NAJIB)</p>
                                 <p class="mt-0.5 text-[10px] text-[#5B6B8A]">Hubungi admin jika ada kendala akun</p>
                             </div>
                         </div>
@@ -2888,7 +2914,7 @@
             const result = await Swal.fire({
                 title: 'Reset Password',
                 html: `
-                    <p style="margin:0 0 18px;font-size:14px;color:#5B6B8A;text-align:left;">Akun: <strong style="color:#0B1F44">${safeText(username)}</strong></p>
+                    <p style="margin:0 0 18px;font-size:14px;color:var(--muted);text-align:left;">Akun: <strong style="color:var(--ink)">${safeText(username)}</strong></p>
                     <div style="display:grid;grid-template-columns:1fr;gap:12px;text-align:left;">
                         <div>
                             <label class="field-label" for="reset_pass">Password baru</label>
@@ -2899,7 +2925,7 @@
                             <input id="reset_confirm" type="password" minlength="8" maxlength="256" autocomplete="new-password" placeholder="Ulangi password" class="field">
                         </div>
                     </div>
-                    <label for="reset_show" style="display:flex;align-items:center;gap:8px;margin-top:16px;font-size:14px;color:#0B1F44;cursor:pointer;text-align:left;">
+                    <label for="reset_show" class="reset-password-toggle">
                         <input id="reset_show" type="checkbox">
                         Tampilkan password
                     </label>
