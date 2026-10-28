@@ -9,6 +9,7 @@ import time
 import logging
 import hmac
 from io import BytesIO
+from urllib.parse import urlparse
 from database import (VendorRecord, DeletedVendor, CustomerRecord,)
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, Form, Request, BackgroundTasks, HTTPException
@@ -453,10 +454,51 @@ def logout(request:Request):
     request.session.clear()
     return {'status':'success'}
 
+def get_supabase_dashboard_url():
+    configured_url = os.getenv('SUPABASE_DASHBOARD_URL', '').strip().rstrip('/')
+    if re.fullmatch(
+        r'https://supabase\.com/dashboard/project/[a-z0-9-]+(?:/editor)?',
+        configured_url,
+    ):
+        return configured_url
+
+    for connection_url in (
+        os.getenv('DATABASE_URL', ''),
+        os.getenv('SUPABASE_DIRECT_URL', ''),
+    ):
+        try:
+            parsed = urlparse(connection_url)
+        except ValueError:
+            continue
+
+        project_ref = ''
+        host_match = re.fullmatch(
+            r'db\.([a-z0-9-]+)\.supabase\.co',
+            (parsed.hostname or '').lower(),
+        )
+        if host_match:
+            project_ref = host_match.group(1)
+        elif parsed.username and '.' in parsed.username:
+            project_ref = parsed.username.rsplit('.', 1)[-1].lower()
+
+        if re.fullmatch(r'[a-z0-9-]{8,64}', project_ref):
+            return f'https://supabase.com/dashboard/project/{project_ref}/editor'
+
+    return ''
+
+
 @app.get('/api/config')
-def config():
+def config(request: Request):
     url=os.getenv('GOOGLE_SHEET_URL','').strip()
-    return {'google_sheet_url':url if url.startswith('https://docs.google.com/spreadsheets/') else '', 'sheets_enabled':configured()}
+    return {
+        'google_sheet_url': url if url.startswith('https://docs.google.com/spreadsheets/') else '',
+        'sheets_enabled': configured(),
+        'supabase_dashboard_url': (
+            get_supabase_dashboard_url()
+            if request.state.role == 'admin'
+            else ''
+        ),
+    }
 
 DEFAULT_VENDORS = [
     "AUP",

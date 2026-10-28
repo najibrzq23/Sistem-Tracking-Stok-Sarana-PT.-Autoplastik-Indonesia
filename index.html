@@ -1415,6 +1415,9 @@
                             </button>
                             <button onclick="openVendorList()" class="btn btn-primary">+ Vendor</button>
                             <button onclick="openCustomerList()" class="btn btn-primary">+ Customer</button>
+                            <a id="supabase_link" hidden href="#" target="_blank" rel="noopener noreferrer" class="btn btn-outline">
+                                Open Supabase ↗
+                            </a>
                             <a id="sheet_link" hidden href="#" target="_blank" rel="noopener noreferrer" class="btn btn-outline">
                                 Buka Google Sheets (arsip) ↗
                             </a>
@@ -2035,6 +2038,9 @@
                 const link = document.getElementById('sheet_link');
                 link.hidden = !cfg.google_sheet_url;
                 if (cfg.google_sheet_url) link.href = cfg.google_sheet_url;
+                const supabaseLink = document.getElementById('supabase_link');
+                supabaseLink.hidden = user.role !== 'admin' || !cfg.supabase_dashboard_url;
+                if (cfg.supabase_dashboard_url) supabaseLink.href = cfg.supabase_dashboard_url;
                 if (sheetsEnabled && user.role !== 'guest') {
                     syncDrainTimer = setInterval(drainSheets, 3000);
                     void drainSheets();
