@@ -3,6 +3,13 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <script>
+        try {
+            if (localStorage.getItem('api-track-theme') === 'dark') {
+                document.documentElement.classList.add('dark-theme');
+            }
+        } catch (error) {}
+    </script>
     <title>Sistem Tracking Sarana - PT. Autoplastik Indonesia</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/html5-qrcode"></script>
@@ -845,6 +852,143 @@
             .sidebar-close { display: inline-flex !important; }
             body.overview-mode.sidebar-open .sidebar-close { display: inline-flex !important; }
         }
+
+        /* Tema gelap hanya mengubah warna, tanpa mengubah susunan halaman. */
+        html.dark-theme {
+            --bg: #08152F;
+            --surface: #132852;
+            --ink: #F2F6FF;
+            --muted: #B6C5DF;
+            --line: #31517F;
+            --line-soft: #213D69;
+            --primary: #4389F8;
+            --primary-dark: #2F76E8;
+            --primary-soft: #183765;
+            --success: #62D6A8;
+            --success-dark: #45BD90;
+            --success-soft: #123F3B;
+            --warning: #F6BA62;
+            --warning-soft: #4A351B;
+            --danger: #FF6B72;
+            --danger-dark: #F0525B;
+            --danger-soft: #4A252F;
+            --shadow: 0 12px 32px rgba(0, 0, 0, .22);
+            --shadow-lg: 0 26px 72px rgba(0, 0, 0, .38);
+            color-scheme: dark;
+        }
+        html.dark-theme body::before {
+            background:
+                radial-gradient(circle at 8% 0%, rgba(67, 137, 248, .14), transparent 30%),
+                radial-gradient(circle at 92% 8%, rgba(98, 214, 168, .08), transparent 26%);
+        }
+        html.dark-theme #sidebar,
+        html.dark-theme .login-card,
+        html.dark-theme .modal-card,
+        html.dark-theme .swal2-popup,
+        html.dark-theme .mobile-bottom-nav { background: #0F2248 !important; }
+        html.dark-theme .mobile-bottom-nav { background: rgba(15, 34, 72, .96) !important; }
+        html.dark-theme .app-card,
+        html.dark-theme .dark-card { background: var(--surface); }
+        html.dark-theme .field,
+        html.dark-theme .segmented,
+        html.dark-theme .table-wrap,
+        html.dark-theme .part-card,
+        html.dark-theme .user-card,
+        html.dark-theme .access-group,
+        html.dark-theme .filter-capsule,
+        html.dark-theme .account-field,
+        html.dark-theme .responsive-table tbody tr { background: #10254D !important; }
+        html.dark-theme .data-table thead th { background: #18335F; }
+        html.dark-theme .data-table tbody tr:hover { background: #193660; }
+        html.dark-theme .btn-outline,
+        html.dark-theme .btn-danger-outline,
+        html.dark-theme .btn-ghost,
+        html.dark-theme .swal2-cancel { background: #10254D !important; }
+        html.dark-theme .field:disabled { background: #192E51; color: #91A3C0; }
+        html.dark-theme .scan-feedback.ready { background: #10254D; }
+        html.dark-theme .login-overlay {
+            background:
+                radial-gradient(circle at 15% 10%, rgba(67, 137, 248, .18), transparent 30%),
+                radial-gradient(circle at 85% 90%, rgba(98, 214, 168, .10), transparent 30%),
+                rgba(8, 21, 47, .96);
+        }
+        html.dark-theme .swal2-input,
+        html.dark-theme .swal2-select,
+        html.dark-theme .swal2-textarea { background: #10254D !important; }
+        html.dark-theme .swal2-select option { background: #10254D; }
+        html.dark-theme [class*="text-[#0B1F44]"] { color: var(--ink) !important; }
+        html.dark-theme [class*="text-[#5B6B8A]"],
+        html.dark-theme [class*="text-[#8EA0BC]"] { color: var(--muted) !important; }
+        html.dark-theme [class*="border-[#D9E6FA]"] { border-color: var(--line) !important; }
+        html.dark-theme [class*="bg-[#F8FBFF]"],
+        html.dark-theme [class*="bg-[#F5F9FF]"],
+        html.dark-theme [class*="bg-[#F4F8FF]"],
+        html.dark-theme [class~="bg-white"] { background-color: #10254D !important; }
+        html.dark-theme img[src="/static/logo_api.png"] {
+            padding: 3px;
+            border-radius: 10px;
+            background: #FFFFFF;
+        }
+        html.dark-theme .a4-page,
+        html.dark-theme .a4-page [class~="bg-white"],
+        html.dark-theme .qr-label-card { background: #FFFFFF !important; color: #0B1F44 !important; }
+
+        .theme-toggle {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 9px;
+            min-height: 42px;
+            padding: 9px 15px;
+            border: 1px solid var(--line);
+            border-radius: 999px;
+            background: var(--surface);
+            color: var(--ink);
+            font-size: 12px;
+            font-weight: 900;
+            line-height: 1;
+            white-space: nowrap;
+            cursor: pointer;
+            transition: background .18s ease, border-color .18s ease, box-shadow .18s ease;
+        }
+        .theme-toggle:hover { border-color: var(--primary); box-shadow: 0 8px 18px rgba(31, 95, 224, .14); }
+        .theme-toggle-dot {
+            width: 18px;
+            height: 18px;
+            flex: 0 0 auto;
+            border: 2px solid #A9C6F4;
+            border-radius: 999px;
+            background: #07152F;
+            box-shadow: inset 0 0 0 2px #07152F;
+        }
+        html.dark-theme .theme-toggle-dot { border-color: #D7E5FA; background: #FFFFFF; box-shadow: inset 0 0 0 2px #FFFFFF; }
+        .contact-person-card {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-top: 16px;
+            padding: 12px;
+            border: 1px solid var(--line);
+            border-radius: 16px;
+            background: #F8FBFF;
+        }
+        html.dark-theme .contact-person-card { background: #10254D; }
+        .contact-person-icon {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 40px;
+            height: 40px;
+            flex: 0 0 auto;
+            border: 1px solid #A9C6F4;
+            border-radius: 999px;
+            background: var(--primary-soft);
+            color: var(--primary);
+        }
+        .contact-person-icon svg { width: 19px; height: 19px; }
+        @media screen and (max-width: 639px) {
+            .account-theme-toggle { width: 100%; }
+        }
     </style>
     <link rel="manifest" href="/static/manifest.webmanifest">
     <meta name="theme-color" content="#1F5FE0">
@@ -1363,6 +1507,10 @@
                             <p class="page-subtitle">Informasi Akun Yang Sedang Login & Akses Keluar</p>
                         </div>
                     </div>
+                    <button id="account_theme_toggle" type="button" class="theme-toggle account-theme-toggle" onclick="toggleTheme()" aria-pressed="false" aria-label="Aktifkan dark mode">
+                        <span class="theme-toggle-dot" aria-hidden="true"></span>
+                        <span id="account_theme_label">Dark mode</span>
+                    </button>
                 </section>
 
                 <div class="grid grid-cols-1 gap-5 lg:grid-cols-12">
@@ -1379,6 +1527,16 @@
                         </div>
                         <div class="mt-5 rounded-2xl border border-[#D9E6FA] bg-[#F8FBFF] p-4">
                             <p class="text-xs font-bold leading-relaxed text-[#5B6B8A]">Akun ini digunakan untuk mengakses sistem pelacakan stok sarana PT Autoplastik Indonesia.</p>
+                        </div>
+                        <div class="contact-person-card">
+                            <div class="contact-person-icon" aria-hidden="true">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.1 4.2 2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1 1 .4 2 .7 2.8a2 2 0 0 1-.5 2.1L8.1 9.9a16 16 0 0 0 6 6l1.3-1.3a2 2 0 0 1 2.1-.5c.9.3 1.8.6 2.8.7a2 2 0 0 1 1.7 2.1Z"></path></svg>
+                            </div>
+                            <div class="min-w-0">
+                                <p class="text-[10px] font-black uppercase tracking-[.08em] text-[#5B6B8A]">Contact Person Admin</p>
+                                <p class="mt-1 text-sm font-black text-[#0B1F44]">08xx-xxxx-xxxx</p>
+                                <p class="mt-0.5 text-[10px] text-[#5B6B8A]">Hubungi admin jika ada kendala akun</p>
+                            </div>
                         </div>
                         <button onclick="logout()" class="btn btn-danger-outline btn-block mt-5">
                             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><path d="m16 17 5-5-5-5"></path><path d="M21 12H9"></path></svg>
@@ -1610,6 +1768,25 @@
         let currentScanner = null;
         let isScanningLocked = false;
 
+        function updateThemeControl() {
+            const isDark = document.documentElement.classList.contains('dark-theme');
+            const toggle = document.getElementById('account_theme_toggle');
+            const label = document.getElementById('account_theme_label');
+            if (toggle) {
+                toggle.setAttribute('aria-pressed', String(isDark));
+                toggle.setAttribute('aria-label', isDark ? 'Aktifkan light mode' : 'Aktifkan dark mode');
+            }
+            if (label) label.textContent = isDark ? 'Light mode' : 'Dark mode';
+            const themeMeta = document.querySelector('meta[name="theme-color"]');
+            if (themeMeta) themeMeta.content = isDark ? '#08152F' : '#1F5FE0';
+        }
+
+        function toggleTheme() {
+            const isDark = document.documentElement.classList.toggle('dark-theme');
+            try { localStorage.setItem('api-track-theme', isDark ? 'dark' : 'light'); } catch (error) {}
+            updateThemeControl();
+        }
+
         const menuConfigs = {
             'overview': { title: 'Overview Dashboard' },
             'api_out': {
@@ -1807,7 +1984,10 @@
             }
             document.getElementById('login_modal').classList.remove('hidden');
         }
-        window.addEventListener('DOMContentLoaded', restoreSession);
+        window.addEventListener('DOMContentLoaded', function() {
+            updateThemeControl();
+            restoreSession();
+        });
 
         function setupPermissions() {
             if (!currentUser) return;
