@@ -925,9 +925,53 @@
         html.dark-theme [class*="bg-[#F4F8FF]"],
         html.dark-theme [class~="bg-white"] { background-color: #10254D !important; }
         html.dark-theme img[src="/static/logo_api.png"] {
-            padding: 3px;
-            border-radius: 10px;
-            background: #FFFFFF;
+            padding: 0;
+            background: transparent !important;
+            box-shadow: none;
+        }
+        html.dark-theme .warning-item {
+            border-color: #FF6B72;
+            background: linear-gradient(135deg, #3D2230 0%, #251E35 100%);
+        }
+        html.dark-theme .warning-icon {
+            border-color: #9E4653;
+            background: #4A252F;
+            color: #FF7A80;
+        }
+        html.dark-theme .warning-badge {
+            border-color: #9E4653;
+            background: #4A252F;
+            color: #FF8D92;
+        }
+        html.dark-theme .warning-part { color: #FF747B; }
+        html.dark-theme .warning-sub { color: #FFC2C5; }
+        html.dark-theme #reader_container button,
+        html.dark-theme #reader_container_dashboard_section_csr button {
+            border-color: var(--line) !important;
+            background: #10254D !important;
+            color: var(--ink) !important;
+            box-shadow: none !important;
+        }
+        html.dark-theme #reader_container button:hover,
+        html.dark-theme #reader_container_dashboard_section_csr button:hover {
+            border-color: var(--primary) !important;
+            background: #183765 !important;
+        }
+        html.dark-theme #reader_container select {
+            border-color: var(--line) !important;
+            background: #10254D !important;
+            color: var(--ink) !important;
+            opacity: 1 !important;
+        }
+        html.dark-theme #reader_container select option {
+            background: #10254D;
+            color: var(--ink);
+        }
+        html.dark-theme #reader_container button:disabled,
+        html.dark-theme #reader_container select:disabled {
+            background: #192E51 !important;
+            color: #B6C5DF !important;
+            opacity: .72 !important;
         }
         html.dark-theme .a4-page,
         html.dark-theme .a4-page [class~="bg-white"],
