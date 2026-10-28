@@ -1415,21 +1415,23 @@
                             </button>
                             <button onclick="openVendorList()" class="btn btn-primary">+ Vendor</button>
                             <button onclick="openCustomerList()" class="btn btn-primary">+ Customer</button>
-                            <a id="supabase_link" hidden href="#" target="_blank" rel="noopener noreferrer" class="btn btn-outline">
+                            <a id="supabase_link" hidden href="#" target="_blank" rel="noopener noreferrer" class="btn btn-primary">
                                 Open Supabase ↗
                             </a>
                             <a id="sheet_link" hidden href="#" target="_blank" rel="noopener noreferrer" class="btn btn-outline">
                                 Buka Google Sheets (arsip) ↗
                             </a>
                             <button onclick="openDeleteNgModal()" class="btn btn-danger">Hapus stok (NG)</button>
-                            <button id="master_export_btn" onclick="exportMasterToExcel()" class="btn btn-success ml-auto">
-                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M12 3v12"></path><path d="m7 10 5 5 5-5"></path><path d="M5 21h14"></path></svg>
-                                Ekspor Excel
-                            </button>
-                            <button id="master_refresh_btn" onclick="refreshMasterData()" class="btn btn-primary">
-                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M20 12a8 8 0 1 1-2.3-5.6"></path><path d="M20 4v6h-6"></path></svg>
-                                Refresh
-                            </button>
+                            <div class="ml-auto flex shrink-0 items-center gap-2">
+                                <button id="master_export_btn" onclick="exportMasterToExcel()" class="btn btn-success">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M12 3v12"></path><path d="m7 10 5 5 5-5"></path><path d="M5 21h14"></path></svg>
+                                    Ekspor Excel
+                                </button>
+                                <button id="master_refresh_btn" onclick="refreshMasterData()" class="btn btn-primary">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M20 12a8 8 0 1 1-2.3-5.6"></path><path d="M20 4v6h-6"></path></svg>
+                                    Refresh
+                                </button>
+                            </div>
                         </div>
                         <div class="mt-4 grid grid-cols-1 gap-3 md:grid-cols-[minmax(0,280px)_1fr] md:items-end">
                             <div>
